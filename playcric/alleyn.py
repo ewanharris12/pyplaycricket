@@ -4,13 +4,15 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import logging
+import math
 
 
 class acc(pc):
     def __init__(self, api_key, site_id, club_names: list = [], team_name_to_ids_lookup: list = []):
         super().__init__(api_key, site_id)
+        self.logger = logging.getLogger('pyplaycricket.alleyn')
         self.api_key = api_key
-        logging.info(f'Setting site_id as {site_id}')
+        self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
         if not club_names:
             self.team_names = config.TEAM_NAMES
@@ -26,57 +28,42 @@ class acc(pc):
             v: k for k, v in self.team_name_to_ids_lookup.items()}
 
     def get_innings_scores(self, match_ids: list = []):
-        n = 1
-        all_match_summary_strings = ''
+        team_names = []
+        innings_scores = []
+        # n = 1
+        # all_match_summary_strings = ''
         for match_id in match_ids:
             data = self._make_api_request(
                 config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
             data = data['match_details'][0]
             if data['result']:
-                teams = []
-                score_strings = []
+                # teams = []
+                # score_strings = []
                 for innings in data['innings']:
                     team = innings['team_batting_name']
                     if self.team_ids_to_names_lookup.get(int(innings['team_batting_id'])) == 'Barbarians':
                         team = 'Brixton Barbarians'
                     team = self._clean_team_name(team)
 
-                    teams.append(team.strip())
+                    team_names.append(team.strip())
 
                     total_runs = innings['runs']
                     if innings['wickets'] == '10':
-                        wickets = 'ao'
+                        wickets = ''
                     else:
                         wickets = '-'+innings['wickets']
                     score_string = f'{total_runs}{wickets}'
-                    score_strings.append(score_string)
+                    innings_scores.append(score_string)
 
-                if n % 2 == 0:
-                    logging.info('score_team_team_score')
-                    match_summary_string = f'{score_strings[0]}\n{teams[0]}\n{teams[1]}\n{score_strings[1]}\n'
-                else:
-                    logging.info('team_score_score_team')
-                    match_summary_string = f'{teams[0]}\n{score_strings[0]}\n{score_strings[1]}\n{teams[1]}\n'
+        team_names = '\n'.join(team_names)
+        innings_scores = '\n'.join(innings_scores)
 
-                all_match_summary_strings += match_summary_string
-                n += 1
-
-        return all_match_summary_strings
-
-    def _clean_team_name(self, team: str):
-        if team.split(' - ')[0] in self.team_names:
-            team = team.split(' - ')[0]
-        else:
-            for nth_team in config.N_TEAM_SWAP:
-                team = team.replace(nth_team, 's')
-            for banned_word in config.TEAM_NAME_BANNED_WORDS:
-                team = team.replace(banned_word, '')
-            team = team.replace('  ', ' ')
-        return team
+        return team_names, innings_scores
 
     def get_individual_performances_for_graphic(self, match_ids: list = []):
         stats_summary = ''
         for match_id in match_ids:
+            print(match_id)
             bat, bowl = self.get_individual_stats(
                 match_id=match_id, stat_string=True)
             for innings in [1, 2]:
@@ -100,6 +87,8 @@ class acc(pc):
                 bowln = bowln.loc[bowln['wickets'] > 0]
                 bowln.sort_values(['wickets', 'runs', 'overs'], ascending=[
                                   False, True, False], inplace=True)
+
+                bowln = bowln.head(3)
 
                 bowling_names = [i.upper()
                                  for i in bowln['initial_name'].tolist()]
@@ -131,15 +120,22 @@ class acc(pc):
         all_result_strings = ''
         for match_id in match_ids:
             # print(match_id)
-            logging.info(f'Match ID: {match_id}')
+            self.logger.info(f'Match ID: {match_id}')
             data = self._make_api_request(
                 config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
             data = data['match_details'][0]
+            if int(data['home_team_id']) in team_ids:
+                team_name = data['home_team_name']
+            else:
+                team_name = data['away_team_name']
             result_letter = self._get_result_letter(
                 data=data, team_ids=team_ids)
 
-            result_string = config.RESULTS_TEXT.get(result_letter)
-            if result_letter in config.NEUTRAL_RESULTS:
+            result_string = team_name + ' ' + \
+                config.RESULTS_TEXT.get(result_letter)
+            if result_letter == 'D':
+                result_string = 'Match drawn'
+            elif result_letter in config.NEUTRAL_RESULTS:
                 pass
             elif data['batted_first'] == data['result_applied_to']:
                 n_runs = int(data['innings'][0]['runs']) - \
@@ -229,16 +225,26 @@ class acc(pc):
         batting = batting.groupby(['initial_name', 'batsman_name'  # , 'batsman_id'
                                    ], as_index=False).agg(
             {'runs': 'sum', 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique})
-        batting['average'] = batting['runs'] / \
-            (batting['match_id']-batting['not_out'])
+        batting['innings_to_count'] = batting['match_id']-batting['not_out']
+        batting['average'] = batting.apply(
+            lambda row: self._calculate_batting_average(row=row), axis=1)
+        # try:
+        #     batting['average'] = np.where(batting['innings_to_count'] == 0, math.inf,
+        #                                   batting['runs'] / batting['innings_to_count'])
+        # except:
+        #     print('FIX BATTING AVERAGES')
+        #     batting['average'] = 0
         batting = batting.sort_values(['runs', 'average', 'balls', 'fours', 'sixes'], ascending=[
+            # batting = batting.sort_values(['runs', 'balls', 'fours', 'sixes'], ascending=[
             False, False, True, False, False]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+        # False, True, False, False]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+
         batting['rank'] += 1
 
         bowling = bowling.groupby(['initial_name', 'bowler_name', 'bowler_id'], as_index=False).agg(
             {'wickets': 'sum', 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
         bowling = bowling.sort_values(['wickets', 'runs', 'balls', 'match_id'], ascending=[
-                                      False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+            False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
         bowling['overs'] = bowling['balls'].apply(
             lambda x: self._calculate_overs(x))
         bowling['rank'] += 1
@@ -297,8 +303,7 @@ class acc(pc):
         return batting, bowling
 
     def _get_individual_performance_title(self, df):
-        df['title'] = df['initial_name'] + ' vs ' + \
-            df['opposition_name'].apply(
+        df['title'] = df['initial_name'] + ' vs ' + df['opposition_name'].apply(
             lambda x: self._clean_team_name(x))
         return df
 
@@ -316,6 +321,7 @@ class acc(pc):
 
         batting = pd.concat(batting)
         bowling = pd.concat(bowling)
+        bowling['wickets'] = bowling['wickets'].fillna(0).astype('int')
         fielding = batting
 
         if team_ids:

@@ -5,11 +5,19 @@ import numpy as np
 import math
 
 from playcric import config
+module_logger = logging.getLogger('pyplaycricket')
 
 
 class u():
     def __init__(self):
+        self.logger = logging.getLogger('pyplaycricket.utils')
         pass
+
+    def _set_site_id(self, site_id):
+        if site_id is None:
+            site_id = self.site_id
+
+        return site_id
 
     def _add_team_name_id_and_innings(self, df, team_name, team_id, opposition_name, opposition_id, innings_n, match_id):
         df['team_name'] = team_name
@@ -56,19 +64,20 @@ class u():
             bowl['balls'] = bowl['overs'].apply(
                 lambda x: self._count_balls(x))
         else:
-            logging.info('No bowling')
+            self.logger.info('No bowling')
             bowl = pd.DataFrame(columns=config.STANDARD_BOWLING_COLS)
         return bowl
 
     def _standardise_bat(self, bat):
         if not bat.empty:
-            bat['not_out'] = np.where(bat['how_out'] == 'not out', 1, 0)
+            bat['not_out'] = np.where(bat['how_out'].isin(
+                ['not out', 'retired not out']), 1, 0)
             for col in ['runs', 'fours', 'sixes', 'balls', 'position']:
                 bat[col] = bat[col].replace('', '0').astype('int')
             bat['initial_name'] = bat['batsman_name'].apply(
                 lambda x: self._get_initials_surname(x))
         else:
-            logging.info('No batting')
+            self.logger.info('No batting')
             bat = pd.DataFrame(columns=config.STANDARD_BATTING_COLS)
         return bat
 
@@ -84,25 +93,34 @@ class u():
             return config.RESULTS_SWAPPER.get(result_letter)
         return result_letter
 
-    def _clean_league_table(self, df, simple):
-        for col in ['TW', 'LOW', 'DLW']+['WD', 'LD']+['TL', 'LOL', 'DLL']+['w', 'l']:
-            try:
-                df[col] = df[col].astype('int')
-            except:
-                pass
+    def _clean_league_table(self, df, simple, key):
         df.columns = [i.upper() for i in df.columns]
-        if simple:
-            try:
-                df['wins'] = df[['TW', 'LOW', 'DLW']].sum(axis=1).astype('int')
-                df['draws'] = df[['WD', 'LD']].sum(axis=1).astype('int')
-                df['losses'] = df[['TL', 'LOL', 'DLL']].sum(
-                    axis=1).astype('int')
+        wins = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
+        draws = ['WD', 'LD', 'ED']
+        losses = ['L', 'TL', 'LOL', 'DLL']
 
-            except:
-                df['wins'] = df[['W']].sum(axis=1).astype('int')
-                # Likely to be a W/L league only so draws = 0
-                df['draws'] = 0  # league_table[['WD','LD']].sum(axis=1)
-                df['losses'] = df[['L']].sum(axis=1).astype('int')
+        if 'W - Total wins' in key:
+            wins.remove('W')
+
+        for col in wins+draws+losses:
+            if col in df.columns:
+                df[col] = df[col].astype('int')
+            else:
+                df[col] = 0
+        if simple:
+            # try:
+            df['wins'] = df[wins].sum(
+                axis=1).astype('int')
+            df['draws'] = df[draws].sum(axis=1).astype('int')
+            df['losses'] = df[losses].sum(
+                axis=1).astype('int')
+
+            # except Exception as e:
+            #     print(f'Issue with WLD: {e}')
+            #     df['wins'] = df[['W']].sum(axis=1).astype('int')
+            #     # Likely to be a W/L league only so draws = 0
+            #     df['draws'] = 0  # league_table[['WD','LD']].sum(axis=1)
+            #     df['losses'] = df[['L']].sum(axis=1).astype('int')
 
             df = df[['POSITION', 'TEAM', 'wins', 'draws', 'losses', 'PTS']]
             df.rename(columns={'wins': 'W', 'draws': 'D',
@@ -110,9 +128,9 @@ class u():
         return df
 
     def _make_api_request(self, url):
-        logging.info(f'Making request to: {url}')
+        self.logger.info(f'Making request to: {url}')
         req = requests.get(url)
-        logging.info(f'Req response: {req.status_code}')
+        self.logger.info(f'Req response: {req.status_code}')
         if req.status_code != 200:
             raise Exception(f'ERROR ({req.status_code}): {req.reason}')
 
@@ -140,6 +158,26 @@ class u():
 
     def _calculate_overs(self, n):
         o = math.floor(n/6)
-        b = n - (o*6)
+        b = int(n - (o*6))
 
         return f'{o}.{b}'
+
+    def _clean_team_name(self, team: str):
+        if team.split(' - ')[0] in self.team_names:
+            team = team.split(' - ')[0]
+        else:
+            for nth_team in config.N_TEAM_SWAP:
+                team = team.replace(nth_team, 's')
+            for banned_word in config.TEAM_NAME_BANNED_WORDS:
+                team = team.replace(banned_word, '')
+            team = team.replace('  ', ' ')
+        return team
+
+    def _calculate_batting_average(self, row):
+        runs = row['runs']
+        innings = row['innings_to_count']
+
+        if innings == 0:
+            return math.inf
+        else:
+            return runs/innings

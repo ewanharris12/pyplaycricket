@@ -6,26 +6,32 @@ import logging
 
 from playcric import config
 from playcric.utils import u
+# from playcric.alleyn import acc
 
 
 class pc(u):
     def __init__(self, api_key, site_id):
         # super.__init__()
         self.api_key = api_key
-        logging.info(f'Setting site_id as {site_id}')
+        self.logger = logging.getLogger('pyplaycricket.playcricket')
+        self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
 
-    def list_registered_players(self):
+    def list_registered_players(self, site_id: int = None):
+        site_id = self._set_site_id(site_id)
         data = self._make_api_request(config.PLAYERS_URL.format(
-            site_id=self.site_id, api_key=self.api_key))
+            site_id=site_id, api_key=self.api_key))
 
         df = pd.json_normalize(data['players'])
         return df
 
-    def get_all_matches(self, season: int, team_ids: list = [], competition_ids: list = [], competition_types: list = []):
+    # def get_all_matches_from_a_comp(self, season: int, team_ids: list = [], competition_ids: list = [], competition_types: list = [])
+
+    def get_all_matches(self, season: int, team_ids: list = [], competition_ids: list = [], competition_types: list = [], site_id: int = None):
+        site_id = self._set_site_id(site_id)
         team_ids = self._convert_team_ids_to_ints(team_ids)
         data = self._make_api_request(config.MATCHES_URL.format(
-            site_id=self.site_id, season=season, api_key=self.api_key))
+            site_id=site_id, season=season, api_key=self.api_key))
 
         df = pd.json_normalize(data['matches'])
         if df.empty:
@@ -37,14 +43,15 @@ class pc(u):
             if col in df.columns:
                 df[col] = df[col].astype('int')
         if team_ids:
-            logging.info(f'Filtering to team_ids: {team_ids}')
+            self.logger.info(f'Filtering to team_ids: {team_ids}')
             df = df.loc[(df['home_team_id'].isin(team_ids)) |
                         (df['away_team_id'].isin(team_ids))]
         if competition_ids:
-            logging.info(f'Filtering to competition_ids: {competition_ids}')
+            self.logger.info(
+                f'Filtering to competition_ids: {competition_ids}')
             df = df.loc[(df['competition_id'].isin(competition_ids))]
         if competition_types:
-            logging.info(
+            self.logger.info(
                 f'Filtering to competition_types: {competition_types}')
             df = df.loc[(df['competition_type'].isin(competition_types))]
         return df
@@ -55,9 +62,13 @@ class pc(u):
 
         df = pd.json_normalize(data['league_table'][0]['values'])
         df.rename(columns=data['league_table'][0]['headings'], inplace=True)
-        df = self._clean_league_table(df=df, simple=simple)
         key = [i.replace('&nbsp;', '')
                for i in data['league_table'][0]['key'].split(',')]
+        df = self._clean_league_table(df=df, simple=simple, key=key)
+
+        df['TEAM'] = df['TEAM'].apply(
+            lambda x: self._clean_team_name(team=x))
+
         return df, key
 
     def get_match_result_string(self, match_id: int):
@@ -88,6 +99,50 @@ class pc(u):
 
         teams = pd.concat([home_t, away_t])
         return teams
+
+    def get_innings_total_scores(self, match_id: int):
+        data = self._make_api_request(
+            config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
+        inn = pd.json_normalize(data['match_details'][0]['innings']).drop(
+            columns=['bat', 'fow', 'bowl', 'innings_number'], errors='ignore').reset_index()
+        inn['match_id'] = match_id
+        inn['index'] += 1
+        inn.rename(columns={'index': 'innings_number'}, inplace=True)
+        inn.dropna(axis=0, how='all', inplace=True)
+        return inn
+
+    def get_match_partnerships(self, match_id: int):
+        data = self._make_api_request(
+            config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
+        data = data['match_details'][0]
+        all_ids = [int(data['home_team_id']), int(data['away_team_id'])]
+        team_name_lookup = {int(data['home_team_id']): data['home_club_name'] + ' - ' + data['home_team_name'],
+                            int(data['away_team_id']): data['away_club_name'] + ' - ' + data['away_team_name']}
+
+        innings_n = 1
+        partnerships = []
+        for innings in data['innings']:
+            p = pd.json_normalize(innings['fow'])
+            batting_name = innings['team_batting_name']
+            batting_id = int(innings['team_batting_id'])
+            if batting_id == all_ids[0]:
+                bowling_id = all_ids[1]
+            else:
+                bowling_id = all_ids[0]
+            bowling_name = team_name_lookup.get(bowling_id)
+
+            p = self._add_team_name_id_and_innings(
+                p, batting_name, batting_id, bowling_name, bowling_id, innings_n, match_id)
+            partnerships.append(p)
+            innings_n += 1
+
+        partnerships = pd.concat(partnerships)
+        if not partnerships.empty:
+            partnerships['score_added'] = partnerships['runs'].astype(
+                'int') - partnerships['runs'].astype('int').shift(1).fillna(0)
+        else:
+            partnerships['score_added'] = None
+        return partnerships
 
     def get_individual_stats(self, match_id: int, team_ids: list = None, stat_string: bool = False):
         data = self._make_api_request(
@@ -143,5 +198,7 @@ class pc(u):
                 lambda row: self._write_batting_string(row), axis=1)
             all_bowling['stat'] = all_bowling.apply(
                 lambda row: self._write_bowling_string(row), axis=1)
+
+        all_bowling
 
         return all_batting, all_bowling

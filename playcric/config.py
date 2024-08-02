@@ -5,8 +5,8 @@ MATCH_DETAIL_URL = 'http://play-cricket.com/api/v2/match_detail.json?&match_id={
 
 NEUTRAL_RESULTS = ['C', 'A', 'D']
 RESULTS_SWAPPER = {'L': 'W', 'W': 'L'}
-RESULTS_TEXT = {'C': 'Match Cancelled', 'A': 'Match Abandoned',
-                'D': 'Match Drawn', 'L': 'Lost by', 'W': 'Won by'}
+RESULTS_TEXT = {'C': 'Match Cancelled', 'A': 'Abandoned',
+                'D': 'Drew', 'L': 'Lost by', 'W': 'Won by'}
 
 STANDARD_BATTING_COLS = ['position', 'batsman_name', 'batsman_id', 'how_out', 'fielder_name',
                          'fielder_id', 'bowler_name', 'bowler_id', 'runs', 'fours', 'sixes',
@@ -22,8 +22,8 @@ NUMBER_OF_PLAYERS_STATS_ON_GRAPHICS = 3
 
 # team_dict =
 TEAM_NAME_TO_IDS_LOOKUP = {'1s': 59723, '2s': 59724, '3s': 241803,
-                           '4s': 267647, '5s': 87177, 'Sunday XI': 325401, 'Barbarians': 279276}
-
+                           '4s': 267647, '5s': 87177, 'Barbarians': 279276, 'Badgers': 268144, 'Honey Badgers': 47517, 'Friendly': 320697}
+# , 'Sunday XI': 325401
 TEAM_NAMES = ['Brixton Barbarians', 'Alleyn CC']
 
 STATS_TOTALS_BATTING_COLUMNS = ['rank', 'batsman_name', 'match_id', 'runs']
