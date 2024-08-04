@@ -8,7 +8,7 @@ import math
 
 
 class acc(pc):
-    def __init__(self, api_key, site_id, club_names: list = [], team_name_to_ids_lookup: list = []):
+    def __init__(self, api_key, site_id, club_names: list = [], team_name_to_ids_lookup: dict = {}):
         """
         Initialize the Alleyn class.
 
@@ -16,25 +16,14 @@ class acc(pc):
             api_key (str): The API key for accessing the Play-Cricket API.
             site_id (str): The ID of the Play-Cricket site.
             club_names (list, optional): A list of club names. Defaults to an empty list.
-            team_name_to_ids_lookup (list, optional): A list of team name to team ID mappings. Defaults to an empty list.
+            team_name_to_ids_lookup (dict, optional): A dict of team name to team ID mappings. Defaults to an empty dict.
         """
-        super().__init__(api_key, site_id)
+        super().__init__(api_key=api_key, site_id=site_id, club_names=club_names,
+                         team_name_to_ids_lookup=team_name_to_ids_lookup)
         self.logger = logging.getLogger('pyplaycricket.alleyn')
-        self.api_key = api_key
-        self.logger.info(f'Setting site_id as {site_id}')
-        self.site_id = site_id
-        if not club_names:
-            self.team_names = config.TEAM_NAMES
-        else:
-            self.team_names = club_names
-
-        if not team_name_to_ids_lookup:
-            self.team_name_to_ids_lookup = config.TEAM_NAME_TO_IDS_LOOKUP
-        else:
-            self.team_name_to_ids_lookup = team_name_to_ids_lookup
-        self.team_ids = list(self.team_name_to_ids_lookup.values())
-        self.team_ids_to_names_lookup = {
-            v: k for k, v in self.team_name_to_ids_lookup.items()}
+        # self.api_key = api_key
+        # self.logger.info(f'Setting site_id as {site_id}')
+        # self.site_id = site_id
 
     def get_innings_scores(self, match_ids: list = []):
         """

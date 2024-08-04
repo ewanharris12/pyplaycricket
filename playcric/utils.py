@@ -20,6 +20,21 @@ class u():
         return site_id
 
     def _add_team_name_id_and_innings(self, df, team_name, team_id, opposition_name, opposition_id, innings_n, match_id):
+        """
+        Adds team name, team id, opposition name, opposition id, innings number, and match id to the given DataFrame.
+
+        Parameters:
+        - df: The DataFrame to which the information will be added.
+        - team_name: The name of the team.
+        - team_id: The ID of the team.
+        - opposition_name: The name of the opposition team.
+        - opposition_id: The ID of the opposition team.
+        - innings_n: The number of the innings.
+        - match_id: The ID of the match.
+
+        Returns:
+        - The modified DataFrame with the added information.
+        """
         df['team_name'] = team_name
         df['team_id'] = team_id
         df['opposition_name'] = opposition_name
@@ -30,10 +45,29 @@ class u():
         return df
 
     def _write_bowling_string(self, row):
+        """
+        Generates a bowling string based on the number of wickets and runs.
+
+        Parameters:
+        - row: A dictionary containing the number of wickets and runs.
+
+        Returns:
+        - bowling_string: A string representing the bowling figures in the format "wickets-runs".
+        """
         bowling_string = f'{row["wickets"]}-{row["runs"]}'
         return bowling_string
 
     def _write_batting_string(self, row):
+        """
+        Generates a string representation of a batting score.
+
+        Args:
+            row (dict): A dictionary containing the batting score information.
+
+        Returns:
+            str: The string representation of the batting score.
+
+        """
         not_out = row['not_out'] == 1
         if not_out:
             no_string = '*'
@@ -47,15 +81,40 @@ class u():
         return run_string
 
     def _get_initials_surname(self, name):
+        """
+        Get the initials and surname from a given name.
+
+        Args:
+            name (str): The name from which to extract the initials and surname.
+
+        Returns:
+            str: The full name consisting of the initials and surname.
+        """
         if not name.replace(' ', ''):
             return None
         name = name.split(' ')
         initials = ''.join([i[0] for i in name[:-1]])
-        surname = name[-1]
-        full_name = f'{initials} {surname}'
-        return full_name
+        if len(name) == 1:
+            return name[0]
+        else:
+            surname = name[-1]
+            full_name = f'{initials} {surname}'
+            return full_name
 
     def _standardise_bowl(self, bowl):
+        """
+        Standardizes the bowling data in the given DataFrame.
+
+        Args:
+            bowl (DataFrame): The DataFrame containing the bowling data.
+
+        Returns:
+            DataFrame: The standardized bowling data.
+
+        Raises:
+            None
+
+        """
         if not bowl.empty:
             for col in ['runs', 'wickets', 'maidens', 'no_balls', 'wides']:
                 bowl[col] = bowl[col].astype('int')
@@ -69,6 +128,18 @@ class u():
         return bowl
 
     def _standardise_bat(self, bat):
+        """
+        Standardizes the batting data by performing the following operations:
+        1. Sets the 'not_out' column to 1 if the 'how_out' column value is 'not out' or 'retired not out', otherwise sets it to 0.
+        2. Replaces empty values in the 'runs', 'fours', 'sixes', 'balls', and 'position' columns with '0' and converts them to integers.
+        3. Adds a new column 'initial_name' which contains the initials and surname of each batsman's name.
+
+        Parameters:
+        - bat: A pandas DataFrame containing the batting data.
+
+        Returns:
+        - bat: The standardized batting data as a pandas DataFrame.
+        """
         if not bat.empty:
             bat['not_out'] = np.where(bat['how_out'].isin(
                 ['not out', 'retired not out']), 1, 0)
@@ -82,6 +153,17 @@ class u():
         return bat
 
     def _get_result_letter(self, data, team_ids):
+        """
+        Get the result letter based on the provided data and team IDs.
+
+        Parameters:
+        - data: A dictionary containing the data.
+        - team_ids: A list of team IDs.
+
+        Returns:
+        - result_letter: The result letter based on the provided data and team IDs.
+        """
+
         result_letter = data['result']
         applied_to = None
         if data['result_applied_to']:
@@ -94,6 +176,19 @@ class u():
         return result_letter
 
     def _clean_league_table(self, df, simple, key):
+        """
+        Cleans the league table dataframe by converting column names to uppercase,
+        converting certain columns to integer type, and performing calculations
+        to derive additional columns.
+
+        Parameters:
+        - df (pandas.DataFrame): The league table dataframe to be cleaned.
+        - simple (bool): Flag indicating whether to perform simple cleaning or not.
+        - key (str): The key used to determine the cleaning process.
+
+        Returns:
+        - df (pandas.DataFrame): The cleaned league table dataframe.
+        """
         df.columns = [i.upper() for i in df.columns]
         wins = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
         draws = ['WD', 'LD', 'ED']
@@ -115,19 +210,26 @@ class u():
             df['losses'] = df[losses].sum(
                 axis=1).astype('int')
 
-            # except Exception as e:
-            #     print(f'Issue with WLD: {e}')
-            #     df['wins'] = df[['W']].sum(axis=1).astype('int')
-            #     # Likely to be a W/L league only so draws = 0
-            #     df['draws'] = 0  # league_table[['WD','LD']].sum(axis=1)
-            #     df['losses'] = df[['L']].sum(axis=1).astype('int')
-
             df = df[['POSITION', 'TEAM', 'wins', 'draws', 'losses', 'PTS']]
             df.rename(columns={'wins': 'W', 'draws': 'D',
                       'losses': 'L'}, inplace=True)
         return df
 
     def _make_api_request(self, url):
+        """
+        Makes an API request to the specified URL.
+
+        Args:
+            url (str): The URL to make the request to.
+
+        Returns:
+            dict: The JSON response from the API.
+
+        Raises:
+            Exception: If the request fails with a non-200 status code.
+
+        """
+
         self.logger.info(f'Making request to: {url}')
         req = requests.get(url)
         self.logger.info(f'Req response: {req.status_code}')
@@ -137,10 +239,29 @@ class u():
         return req.json()
 
     def _convert_team_ids_to_ints(self, team_ids):
+        """
+        Converts a list of team IDs to integers.
+
+        Parameters:
+        - team_ids (list): A list of team IDs.
+
+        Returns:
+        - list: A list of team IDs converted to integers.
+        """
         team_ids = [int(i) for i in team_ids]
         return team_ids
 
     def _count_balls(self, n):
+        """
+        Counts the total number of balls based on the given input string.
+
+        Parameters:
+        n (str): The input string representing the number of overs and balls.
+
+        Returns:
+        int: The total number of balls.
+
+        """
         n = n.split('.')
         if len(n) == 0:
             return None
@@ -157,12 +278,35 @@ class u():
             return (overs*6)+balls
 
     def _calculate_overs(self, n):
+        """
+        Calculates the number of overs and balls from the given total number of balls.
+
+        Parameters:
+        - n (int): The total number of balls.
+
+        Returns:
+        - str: The calculated number of overs and balls in the format 'o.b', where 'o' is the number of overs and 'b' is the number of balls.
+
+        Example:
+        >>> _calculate_overs(25)
+        '4.1'
+        """
+
         o = math.floor(n/6)
         b = int(n - (o*6))
 
         return f'{o}.{b}'
 
-    def _clean_team_name(self, team: str):
+    def _clean_team_name(self, team: str) -> str:
+        """
+        Cleans the given team name by removing unwanted characters and words.
+
+        Args:
+            team (str): The team name to be cleaned.
+
+        Returns:
+            str: The cleaned team name.
+        """
         if team.split(' - ')[0] in self.team_names:
             team = team.split(' - ')[0]
         else:
@@ -170,14 +314,24 @@ class u():
                 team = team.replace(nth_team, 's')
             for banned_word in config.TEAM_NAME_BANNED_WORDS:
                 team = team.replace(banned_word, '')
-            team = team.replace('  ', ' ')
+        team = " ".join(team.split())
         return team
 
     def _calculate_batting_average(self, row):
+        """
+        Calculate the batting average.
+
+        Parameters:
+        - row: dict, the row containing the runs and innings information
+
+        Returns:
+        - float or None: the batting average if innings is not zero, otherwise None
+        """
+
         runs = row['runs']
         innings = row['innings_to_count']
 
         if innings == 0:
-            return math.inf
+            return None
         else:
             return runs/innings

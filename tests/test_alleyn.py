@@ -6,7 +6,7 @@ from datetime import datetime, date
 import math
 
 
-class TestAcc(unittest.TestCase):
+class TestAlleyn(unittest.TestCase):
     def setUp(self):
         self.api_key = 'your_api_key'
         self.site_id = 'your_site_id'
