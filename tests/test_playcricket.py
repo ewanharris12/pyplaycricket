@@ -206,7 +206,7 @@ class TestPlayCricket(unittest.TestCase):
             'team_id': [1, 1, 100, 100],
             'team_name': ['Team A', 'Team A', 'Team B', 'Team B']
         })
-        df = self.pc_instance.get_players_used_in_match(match_id)
+        df = self.pc_instance._get_players_used_in_match(match_id)
         pd.testing.assert_frame_equal(df, expected_df)
 
     @patch.object(pc, '_make_api_request')

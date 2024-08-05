@@ -45,8 +45,6 @@ class acc(pc):
             if data['result']:
                 for innings in data['innings']:
                     team = innings['team_batting_name']
-                    if self.team_ids_to_names_lookup.get(int(innings['team_batting_id'])) == 'Barbarians':
-                        team = 'Brixton Barbarians'
                     team = self._clean_team_name(team)
 
                     team_names.append(team.strip())
@@ -300,7 +298,7 @@ class acc(pc):
 
         return league_table_string
 
-    def get_season_stats_totals(self, match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
+    def get_alleyn_season_totals(self, match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
         """
         Calculate the season statistics totals for batting, bowling, and fielding.
 
@@ -317,7 +315,7 @@ class acc(pc):
         if not team_ids:
             team_ids = self.team_ids
 
-        batting, bowling, fielding = self.get_all_stats(
+        batting, bowling, fielding = self.get_stat_totals(
             match_ids, team_ids, for_graphics, n_players)
         return batting, bowling, fielding
 
@@ -354,13 +352,8 @@ class acc(pc):
         """
         if not team_ids:
             team_ids = self.team_ids
-        batting, bowling, fielding = self.get_individual_stats_from_all_games(
+        batting, bowling, _ = self.get_individual_stats_from_all_games(
             match_ids=match_ids, team_ids=team_ids, stat_string=True)
-
-        batting.sort_values(['runs', 'balls'], ascending=[
-                            False, True], inplace=True)
-        bowling.sort_values(['wickets', 'runs', 'balls'], ascending=[
-                            False, True, True], inplace=True)
 
         if for_graphics:
             batting = self._get_individual_performance_title(
@@ -387,7 +380,7 @@ class acc(pc):
             lambda x: self._clean_team_name(x))
         return df
 
-    def get_all_players_involved(self, match_ids: list, team_ids: list = []):
+    def get_all_team_players_involved(self, match_ids: list, team_ids: list = []):
         """
         Retrieves all players involved in the specified matches and teams.
 
@@ -400,12 +393,6 @@ class acc(pc):
         """
         if not team_ids:
             team_ids = self.team_ids
-        players = []
-        for match_id in match_ids:
-            players.append(self.get_players_used_in_match(match_id=match_id))
-        players = pd.concat(players)
-        players = players.loc[players['team_id'].isin(team_ids)]
-
-        players = players.drop_duplicates(subset=['player_name', 'player_id'])
-        players.reset_index(inplace=True, drop=True)
+        players = self.get_all_players_involved(
+            match_ids=match_ids, team_ids=team_ids)
         return players

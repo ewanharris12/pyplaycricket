@@ -151,7 +151,30 @@ class pc(u):
         result_letter = self._get_result_letter(data=data, team_ids=team_ids)
         return result_letter
 
-    def get_players_used_in_match(self, match_id: int):
+    def get_all_players_involved(self, match_ids: list, team_ids: list = []):
+        """
+        Retrieves all players involved in the specified matches and teams.
+
+        Args:
+            match_ids (list): A list of match IDs.
+            team_ids (list, optional): A list of team IDs. If not provided, it uses the default team IDs.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the details of all players involved.
+        """
+        players = []
+        for match_id in match_ids:
+            players.append(self._get_players_used_in_match(match_id=match_id))
+        players = pd.concat(players)
+
+        if team_ids:
+            players = players.loc[players['team_id'].isin(team_ids)]
+
+        players = players.drop_duplicates(subset=['player_name', 'player_id'])
+        players.reset_index(inplace=True, drop=True)
+        return players
+
+    def _get_players_used_in_match(self, match_id: int):
         """
         Retrieves the players used in a specific match.
 
@@ -296,7 +319,7 @@ class pc(u):
 
         return all_batting, all_bowling
 
-    def get_all_stats(self,  match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
+    def get_stat_totals(self,  match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
         """
         Retrieves the batting, bowling, and fielding statistics for a given set of match and team IDs.
 
@@ -397,6 +420,11 @@ class pc(u):
             fielding = batting.loc[~batting['team_id'].isin(team_ids)]
             batting = batting.loc[batting['team_id'].isin(team_ids)]
             bowling = bowling.loc[bowling['team_id'].isin(team_ids)]
+
+        batting.sort_values(['runs', 'balls'], ascending=[
+                            False, True], inplace=True)
+        bowling.sort_values(['wickets', 'runs', 'balls'], ascending=[
+                            False, True, True], inplace=True)
 
         batting.reset_index(inplace=True, drop=True)
         fielding.reset_index(inplace=True, drop=True)

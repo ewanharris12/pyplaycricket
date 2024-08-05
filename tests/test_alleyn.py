@@ -261,7 +261,7 @@ class TestAlleyn(unittest.TestCase):
             'dismissals': [2, 1],
             'n_games': [2, 1]
         })
-        batting, bowling, fielding = self.acc_instance.get_season_stats_totals(
+        batting, bowling, fielding = self.acc_instance.get_alleyn_season_totals(
             match_ids, team_ids, for_graphics, n_players)
 
         # batting['runs'] = batting['runs'].astype('float')
@@ -371,23 +371,26 @@ class TestAlleyn(unittest.TestCase):
 
         # Mock the return value of get_individual_stats
         mock_get_individual_stats.side_effect = [
-            (pd.DataFrame({'player_name': ['John'], 'runs': [100], 'team_id': [1]}), pd.DataFrame(
-                {'player_name': ['Alice'], 'wickets': [5], 'team_id': [1]})),
-            (pd.DataFrame({'player_name': ['Bob'], 'runs': [50], 'team_id': [1]}), pd.DataFrame(
-                {'player_name': ['Eve'], 'wickets': [3], 'team_id': [1]})),
-            (pd.DataFrame({'player_name': ['Charlie'], 'runs': [75], 'team_id': [1]}), pd.DataFrame(
-                {'player_name': ['Dave'], 'wickets': [2], 'team_id': [1]}))
+            (pd.DataFrame({'player_name': ['John'], 'runs': [100], 'balls': [80], 'team_id': [1]}), pd.DataFrame(
+                {'player_name': ['Alice'], 'wickets': [5], 'balls': [30], 'runs': [300], 'team_id': [1]})),
+            (pd.DataFrame({'player_name': ['Bob'], 'runs': [50], 'balls': [50], 'team_id': [1]}), pd.DataFrame(
+                {'player_name': ['Eve'], 'wickets': [3], 'balls': [25], 'runs': [200], 'team_id': [1]})),
+            (pd.DataFrame({'player_name': ['Charlie'], 'runs': [75], 'balls': [20], 'team_id': [1]}), pd.DataFrame(
+                {'player_name': ['Dave'], 'wickets': [2], 'balls': [5], 'runs': [100], 'team_id': [1]}))
         ]
 
         expected_batting = pd.DataFrame({
-            'player_name': ['John', 'Bob', 'Charlie'],
-            'runs': [100, 50, 75],
+            'player_name': ['John', 'Charlie', 'Bob'],
+            'runs': [100, 75, 50],
+            'balls': [80, 20, 50],
             'team_id': [1, 1, 1]
         })
 
         expected_bowling = pd.DataFrame({
             'player_name': ['Alice', 'Eve', 'Dave'],
             'wickets': [5, 3, 2],
+            'balls': [30, 25, 5],
+            'runs': [300, 200, 100],
             'team_id': [1, 1, 1]
         })
 
@@ -397,7 +400,7 @@ class TestAlleyn(unittest.TestCase):
         pd.testing.assert_frame_equal(batting, expected_batting)
         pd.testing.assert_frame_equal(bowling, expected_bowling)
 
-    @patch.object(acc, 'get_players_used_in_match')
+    @patch.object(pc, '_get_players_used_in_match')
     def test_get_all_players_involved(self, mock_get_players_used_in_match):
         match_ids = [1, 2, 3]
         team_ids = [1, 2, 3]
