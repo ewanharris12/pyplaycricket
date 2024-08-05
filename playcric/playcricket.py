@@ -237,7 +237,7 @@ class pc(u):
             partnerships['score_added'] = None
         return partnerships
 
-    def get_individual_stats(self, match_id: int, team_ids: list = None, stat_string: bool = False):
+    def get_individual_stats(self, match_id: int, team_ids: list = [], stat_string: bool = False):
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         data = data['match_details'][0]
@@ -295,3 +295,111 @@ class pc(u):
         all_bowling
 
         return all_batting, all_bowling
+
+    def get_all_stats(self,  match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
+        """
+        Retrieves the batting, bowling, and fielding statistics for a given set of match and team IDs.
+
+        Args:
+            match_ids (list): A list of match IDs.
+            team_ids (list, optional): A list of team IDs.
+            for_graphics (bool, optional): A flag indicating whether the statistics are for graphics.
+            n_players (int, optional): The number of players to include in the statistics.
+
+        Returns:
+            tuple: A tuple containing the batting, bowling, and fielding statistics.
+
+        """
+        batting, bowling, fielding = self.get_individual_stats_from_all_games(
+            match_ids, team_ids, stat_string=False)
+
+        batting = batting.loc[batting['how_out'] != 'did not bat']
+        batting = batting.groupby(['initial_name', 'batsman_name'  # , 'batsman_id'
+                                   ], as_index=False).agg(
+            {'runs': 'sum', 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique})
+        batting['innings_to_count'] = batting['match_id']-batting['not_out']
+        batting['average'] = batting.apply(
+            lambda row: self._calculate_batting_average(row=row), axis=1)
+        batting = batting.sort_values(['runs', 'average', 'balls', 'fours', 'sixes'], ascending=[
+            False, False, True, False, False]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+
+        batting['rank'] += 1
+
+        bowling = bowling.groupby(['initial_name', 'bowler_name', 'bowler_id'], as_index=False).agg(
+            {'wickets': 'sum', 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
+        bowling = bowling.sort_values(['wickets', 'runs', 'balls', 'match_id'], ascending=[
+            False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+        bowling['overs'] = bowling['balls'].apply(
+            lambda x: self._calculate_overs(x))
+        bowling['rank'] += 1
+
+        fielding = fielding.groupby(
+            ['fielder_name', 'fielder_id'], as_index=False).agg({'match_id': ['count', pd.Series.nunique]})
+        fielding.columns = ['fielder_name',
+                            'fielder_id', 'dismissals', 'n_games']
+        fielding.sort_values(['dismissals', 'n_games'], ascending=[
+            False, True], inplace=True)
+        fielding = fielding.reset_index(
+            drop=True).reset_index().rename(columns={'index': 'rank'})
+
+        fielding = fielding.loc[fielding['fielder_name'] != '']
+        fielding['rank'] += 1
+
+        if for_graphics:
+            batting = batting[config.STATS_TOTALS_BATTING_COLUMNS].head(
+                n_players)
+            bowling = bowling[config.STATS_TOTALS_BOWLING_COLUMNS].head(
+                n_players)
+            fielding = fielding[config.STATS_TOTALS_FIELDING_COLUMNS].head(
+                n_players)
+
+            batting = self._extract_string_for_graphic(batting)
+            bowling = self._extract_string_for_graphic(bowling)
+            fielding = self._extract_string_for_graphic(fielding)
+        return batting, bowling, fielding
+
+    def get_individual_stats_from_all_games(self,  match_ids: list, team_ids: list = [], stat_string: bool = False):
+        """
+        Retrieves individual batting, bowling, and fielding statistics from all games.
+
+        Args:
+            match_ids (list): List of match IDs.
+            team_ids (list): List of team IDs.
+            stat_string (str): String representing the desired statistics.
+
+        Returns:
+            tuple: A tuple containing three pandas DataFrames - batting, bowling, and fielding.
+                - batting: DataFrame containing individual batting statistics.
+                - bowling: DataFrame containing individual bowling statistics.
+                - fielding: DataFrame containing individual fielding statistics.
+
+        Raises:
+            ValueError: If any of the match IDs fail to retrieve statistics.
+
+        """
+        batting = []
+        bowling = []
+        for match_id in match_ids:
+            try:
+                bat, bowl = self.get_individual_stats(
+                    match_id=match_id, stat_string=stat_string)
+            except Exception as e:
+                raise ValueError(f'MATCH ID {match_id} FAILED WITH: {e}')
+            batting.append(bat)
+            bowling.append(bowl)
+
+        batting = pd.concat(batting)
+        bowling = pd.concat(bowling)
+        bowling['wickets'] = bowling['wickets'].fillna(0).astype('int')
+        fielding = batting
+
+        if team_ids:
+            fielding = batting.loc[~batting['team_id'].isin(team_ids)]
+            batting = batting.loc[batting['team_id'].isin(team_ids)]
+            bowling = bowling.loc[bowling['team_id'].isin(team_ids)]
+
+        batting.reset_index(inplace=True, drop=True)
+        fielding.reset_index(inplace=True, drop=True)
+        bowling.reset_index(inplace=True, drop=True)
+
+        return batting, bowling, fielding

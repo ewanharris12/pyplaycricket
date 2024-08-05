@@ -21,6 +21,8 @@ import unittest
 from playcric.utils import u
 import unittest
 from playcric.utils import u
+import unittest
+from playcric.utils import u
 
 
 class TestUtils(unittest.TestCase):
@@ -355,6 +357,30 @@ class TestUtils(unittest.TestCase):
         expected_result4 = "Team D"
         result4 = self.utils._clean_team_name(team4)
         self.assertEqual(result4, expected_result4)
+
+    def test_calculate_batting_average_with_non_zero_innings(self):
+        # Test case with non-zero innings
+        row = {
+            "runs": 100,
+            "innings_to_count": 10
+        }
+        expected_result = 10.0
+
+        result = self.utils._calculate_batting_average(row)
+
+        self.assertEqual(result, expected_result)
+
+    def test_calculate_batting_average_with_zero_innings(self):
+        # Test case with zero innings
+        row = {
+            "runs": 100,
+            "innings_to_count": 0
+        }
+        expected_result = None
+
+        result = self.utils._calculate_batting_average(row)
+
+        self.assertEqual(result, expected_result)
 
 
 if __name__ == '__main__':

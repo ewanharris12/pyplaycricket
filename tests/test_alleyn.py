@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch
 from playcric.alleyn import acc
+from playcric.playcricket import pc
 import pandas as pd
 from datetime import datetime, date
 import math
@@ -190,7 +191,7 @@ class TestAlleyn(unittest.TestCase):
 
         self.assertEqual(cutout, expected_cutout)
 
-    @patch.object(acc, '_get_individual_stats_from_all_games')
+    @patch.object(pc, 'get_individual_stats_from_all_games')
     def test_get_season_stats_totals(self, mock_get_individual_stats):
         match_ids = [1, 2, 3]
         team_ids = [1, 2, 3]
@@ -282,7 +283,7 @@ class TestAlleyn(unittest.TestCase):
 
         self.assertEqual(actual_string, expected_string)
 
-    @patch.object(acc, '_get_individual_stats_from_all_games')
+    @patch.object(pc, 'get_individual_stats_from_all_games')
     def test_get_best_individual_performances(self, mock_get_individual_stats):
         match_ids = [1, 2, 3]
         team_ids = [1, 2, 3]
@@ -390,7 +391,7 @@ class TestAlleyn(unittest.TestCase):
             'team_id': [1, 1, 1]
         })
 
-        batting, bowling, _ = self.acc_instance._get_individual_stats_from_all_games(
+        batting, bowling, _ = self.acc_instance.get_individual_stats_from_all_games(
             match_ids, team_ids, stat_string)
 
         pd.testing.assert_frame_equal(batting, expected_batting)
