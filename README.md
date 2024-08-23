@@ -89,7 +89,7 @@ Most of the IDs required for filtering on leagues, competitions, teams, clubs et
 
 If you want to return all the fixtures for another club, you will need to find this on their playcricket site, at the bottom of the home page.
 
-## What is mplsoccer?
+## What is pyplaycricket?
 In pyplaycricket, you can:
 
 - list all registered players for a club
