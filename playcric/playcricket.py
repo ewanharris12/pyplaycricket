@@ -128,7 +128,7 @@ class pc(u):
 
         Args:
             match_id (int): The ID of the match.
-            team_ids (list, optional): A list of team IDs. Defaults to None.
+            team_ids (list, optional): A list of team IDs to whom the match result should apply. Defaults to None.
 
         Returns:
             str: The result letter indicating the outcome of the match for the specified team(s).

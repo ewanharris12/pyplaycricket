@@ -90,51 +90,17 @@ Most of the IDs required for filtering on leagues, competitions, teams, clubs et
 If you want to return all the fixtures for another club, you will need to find this on their playcricket site, at the bottom of the home page.
 
 ## What is mplsoccer?
-In mplsoccer, you can:
+In pyplaycricket, you can:
 
-- plot football/soccer pitches on nine different pitch types
-- plot radar charts
-- plot Nightingale/pizza charts
-- plot bumpy charts for showing changes over time
-- plot arrows, heatmaps, hexbins, scatter, and (comet) lines
-- load StatsBomb data as a tidy dataframe
-- standardize pitch coordinates into a single format
+- list all registered players for a club
+- get all matches for a club
+- get a league table in dataframe form
+- get all players involved in a fixture
+- get all partnerships from a fixture
+- get all individual stats from a fixture
+- get all individual stats totalled over a season
 
-I hope mplsoccer helps you make insightful graphics faster,
-so you don't have to build charts from scratch.
-
----
-
-## Want to help?
-I would love the community to get involved in mplsoccer.
-Take a look at our [open-issues](https://github.com/andrewRowlinson/mplsoccer/issues) 
-for inspiration.
-Please get in touch at rowlinsonandy@gmail.com or 
-[@numberstorm](https://twitter.com/numberstorm) on Twitter to find out more.
-
----
-
-## Recent changes
-
-View the [changelog](https://github.com/andrewRowlinson/mplsoccer/blob/master/CHANGELOG.md) 
-for a full list of the recent changes to mplsoccer.
-
----
-
-## Inspiration
-
-mplsoccer was inspired by:
-- [Peter McKeever](https://petermckeever.com/) heavily inspired the API design
-- [ggsoccer](https://github.com/Torvaney/ggsoccer) influenced the design and Standardizer
-- [lastrow's](https://twitter.com/lastrowview) legendary animations
-- [fcrstats'](https://twitter.com/FC_rstats) tutorials for using football data
-- [fcpython's](https://fcpython.com/) Python tutorials for using football data
-- [Karun Singh's](https://twitter.com/karun1710) expected threat (xT) visualizations
-- [StatsBomb's](https://statsbomb.com/) great visual design and free open-data
-- John Burn-Murdoch's [tweet](https://twitter.com/jburnmurdoch/status/1057907312030085120) got me 
-interested in football analytics
-
----
+I hope pyplaycricket makes it easier to return data from playcricket for a variety of different use cases.
 
 ## License
 
