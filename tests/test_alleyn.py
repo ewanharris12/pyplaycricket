@@ -3,8 +3,7 @@ from unittest.mock import patch
 from playcric.alleyn import acc
 from playcric.playcricket import pc
 import pandas as pd
-from datetime import datetime, date
-import math
+from datetime import date
 
 
 class TestAlleyn(unittest.TestCase):

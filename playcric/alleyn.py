@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import logging
-import math
 
 
 class acc(pc):
@@ -24,6 +23,18 @@ class acc(pc):
         # self.api_key = api_key
         # self.logger.info(f'Setting site_id as {site_id}')
         # self.site_id = site_id
+        if not club_names:
+            self.team_names = config.TEAM_NAMES
+        else:
+            self.team_names = club_names
+
+        if not team_name_to_ids_lookup:
+            self.team_name_to_ids_lookup = config.TEAM_NAME_TO_IDS_LOOKUP
+        else:
+            self.team_name_to_ids_lookup = team_name_to_ids_lookup
+        self.team_ids = list(self.team_name_to_ids_lookup.values())
+        self.team_ids_to_names_lookup = {
+            v: k for k, v in self.team_name_to_ids_lookup.items()}
 
     def get_innings_scores(self, match_ids: list = []):
         """
@@ -298,7 +309,7 @@ class acc(pc):
 
         return league_table_string
 
-    def get_alleyn_season_totals(self, match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
+    def get_alleyn_season_totals(self, match_ids: list, team_ids: list = [], group_by_team: bool = False, for_graphics: bool = False, n_players: int = 10):
         """
         Calculate the season statistics totals for batting, bowling, and fielding.
 
@@ -316,7 +327,7 @@ class acc(pc):
             team_ids = self.team_ids
 
         batting, bowling, fielding = self.get_stat_totals(
-            match_ids, team_ids, for_graphics, n_players)
+            match_ids, team_ids, group_by_team, for_graphics, n_players)
         return batting, bowling, fielding
 
     def _extract_string_for_graphic(self, df):

@@ -1,12 +1,11 @@
 import pandas as pd
-import numpy as np
-import requests
 import logging
+import requests
+import cachecontrol
 
 
 from playcric import config
 from playcric.utils import u
-# from playcric.alleyn import acc
 
 
 class pc(u):
@@ -16,18 +15,8 @@ class pc(u):
         self.logger = logging.getLogger('pyplaycricket.playcricket')
         self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
-        if not club_names:
-            self.team_names = config.TEAM_NAMES
-        else:
-            self.team_names = club_names
-
-        if not team_name_to_ids_lookup:
-            self.team_name_to_ids_lookup = config.TEAM_NAME_TO_IDS_LOOKUP
-        else:
-            self.team_name_to_ids_lookup = team_name_to_ids_lookup
-        self.team_ids = list(self.team_name_to_ids_lookup.values())
-        self.team_ids_to_names_lookup = {
-            v: k for k, v in self.team_name_to_ids_lookup.items()}
+        self.team_names = []
+        self.req_session = cachecontrol.CacheControl(requests.Session())
 
     def list_registered_players(self, site_id: int = None):
         """
@@ -90,7 +79,7 @@ class pc(u):
             df = df.loc[(df['competition_type'].isin(competition_types))]
         return df
 
-    def get_league_table(self, competition_id: int, simple: bool = False):
+    def get_league_table(self, competition_id: int, simple: bool = False, clean_names: bool = True):
         """
         Retrieves the league table for a given competition ID.
 
@@ -111,9 +100,9 @@ class pc(u):
         key = [i.replace('&nbsp;', '')
                for i in data['league_table'][0]['key'].split(',')]
         df = self._clean_league_table(df=df, simple=simple, key=key)
-
-        df['TEAM'] = df['TEAM'].apply(
-            lambda x: self._clean_team_name(team=x))
+        if clean_names:
+            df['TEAM'] = df['TEAM'].apply(
+                lambda x: self._clean_team_name(team=x))
 
         return df, key
 
@@ -164,38 +153,18 @@ class pc(u):
         """
         players = []
         for match_id in match_ids:
-            players.append(self._get_players_used_in_match(match_id=match_id))
+            players.append(self._get_players_used_in_match(
+                match_id=match_id, api_key=self.api_key))
         players = pd.concat(players)
 
         if team_ids:
             players = players.loc[players['team_id'].isin(team_ids)]
 
-        players = players.drop_duplicates(subset=['player_name', 'player_id'])
+        players = players.drop_duplicates(
+            subset=['player_name', 'player_id', 'match_id'])
+        # players['player_id'] = players['player_id'].astype('int')
         players.reset_index(inplace=True, drop=True)
         return players
-
-    def _get_players_used_in_match(self, match_id: int):
-        """
-        Retrieves the players used in a specific match.
-
-        Args:
-            match_id (int): The ID of the match.
-
-        Returns:
-            pandas.DataFrame: A DataFrame containing the players used in the match.
-        """
-        data = self._make_api_request(
-            config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
-
-        home_t = pd.json_normalize(
-            data['match_details'][0]['players'][0]['home_team'])
-        home_t['team_id'] = int(data['match_details'][0]['home_team_id'])
-        away_t = pd.json_normalize(
-            data['match_details'][0]['players'][1]['away_team'])
-        away_t['team_id'] = int(data['match_details'][0]['away_team_id'])
-
-        teams = pd.concat([home_t, away_t]).reset_index(drop=True)
-        return teams
 
     def get_innings_total_scores(self, match_id: int):
         """
@@ -315,11 +284,11 @@ class pc(u):
             all_bowling['stat'] = all_bowling.apply(
                 lambda row: self._write_bowling_string(row), axis=1)
 
-        all_bowling
+        # all_bowling
 
         return all_batting, all_bowling
 
-    def get_stat_totals(self,  match_ids: list, team_ids: list = [], for_graphics: bool = False, n_players: int = 10):
+    def get_stat_totals(self,  match_ids: list, team_ids: list = [], group_by_team: bool = False, for_graphics: bool = False, n_players: int = 10):
         """
         Retrieves the batting, bowling, and fielding statistics for a given set of match and team IDs.
 
@@ -336,10 +305,17 @@ class pc(u):
         batting, bowling, fielding = self.get_individual_stats_from_all_games(
             match_ids, team_ids, stat_string=False)
 
+        batting_groupby = ['initial_name', 'batsman_name', 'batsman_id']
+        bowling_groupby = ['initial_name', 'bowler_name', 'bowler_id']
+        fielding_groupby = ['fielder_name', 'fielder_id']
+        if group_by_team:
+            batting_groupby += ['team_id']
+            bowling_groupby += ['team_id']
+            fielding_groupby += ['team_id']
+
         batting = batting.loc[batting['how_out'] != 'did not bat']
-        batting = batting.groupby(['initial_name', 'batsman_name'  # , 'batsman_id'
-                                   ], as_index=False).agg(
-            {'runs': 'sum', 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique})
+        batting = batting.groupby(batting_groupby, as_index=False).agg(
+            {'runs': 'sum', 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique, 'position': 'mean'})
         batting['innings_to_count'] = batting['match_id']-batting['not_out']
         batting['average'] = batting.apply(
             lambda row: self._calculate_batting_average(row=row), axis=1)
@@ -348,18 +324,24 @@ class pc(u):
 
         batting['rank'] += 1
 
-        bowling = bowling.groupby(['initial_name', 'bowler_name', 'bowler_id'], as_index=False).agg(
+        bowling = bowling.groupby(bowling_groupby, as_index=False).agg(
             {'wickets': 'sum', 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
         bowling = bowling.sort_values(['wickets', 'runs', 'balls', 'match_id'], ascending=[
             False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
         bowling['overs'] = bowling['balls'].apply(
             lambda x: self._calculate_overs(x))
+        bowling['average'] = bowling['runs']/bowling['wickets']
+        bowling['sr'] = bowling['balls']/bowling['wickets']
+        bowling['econ'] = (bowling['runs']/bowling['balls'])*6
+
         bowling['rank'] += 1
 
         fielding = fielding.groupby(
-            ['fielder_name', 'fielder_id'], as_index=False).agg({'match_id': ['count', pd.Series.nunique]})
-        fielding.columns = ['fielder_name',
-                            'fielder_id', 'dismissals', 'n_games']
+            fielding_groupby, as_index=False).agg({'match_id': ['count', pd.Series.nunique]})
+        fielding.columns = [self._clean_column_names(
+            col) for col in fielding.columns]
+        fielding.rename(columns={'match_id_count': 'dismissals',
+                        'match_id_nunique': 'n_games'}, inplace=True)
         fielding.sort_values(['dismissals', 'n_games'], ascending=[
             False, True], inplace=True)
         fielding = fielding.reset_index(

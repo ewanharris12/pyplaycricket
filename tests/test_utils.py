@@ -1,28 +1,8 @@
-import unittest
 from playcric.utils import u
-import pandas as pd
 from playcric import config
-import unittest
-from playcric.utils import u
-import pandas as pd
-import unittest
-from playcric.utils import u
-import unittest
-from playcric.utils import u
 import pandas as pd
 import unittest
 from unittest.mock import patch
-from playcric.utils import u
-import unittest
-from playcric.utils import u
-import unittest
-from playcric.utils import u
-import unittest
-from playcric.utils import u
-import unittest
-from playcric.utils import u
-import unittest
-from playcric.utils import u
 
 
 class TestUtils(unittest.TestCase):
@@ -234,9 +214,9 @@ class TestUtils(unittest.TestCase):
             'PTS': [10, 8, 6]
         })
 
-        wins = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
-        draws = ['WD', 'LD', 'ED']
-        losses = ['L', 'TL', 'LOL', 'DLL']
+        wins = config.LEAGUE_TABLE_WIN_TYPES
+        draws = config.LEAGUE_TABLE_DRAW_TYPES
+        losses = config.LEAGUE_TABLE_LOSS_TYPES
 
         for col in wins+draws+losses:
             if col not in expected_result.columns:
@@ -381,6 +361,68 @@ class TestUtils(unittest.TestCase):
         result = self.utils._calculate_batting_average(row)
 
         self.assertEqual(result, expected_result)
+
+    @patch.object(u, '_make_api_request')
+    def test_get_players_used_in_match(self, mock_make_api_request):
+        match_id = 1
+        mock_make_api_request.return_value = {
+            'match_details': [
+                {'home_team_id': 1,
+                    'away_team_id': 100,
+                    'home_club_id': 2,
+                    'away_club_id': 200,
+                    'players': [
+                        {
+                            'home_team': [
+                                {
+                                    'player_id': 1,
+                                    'player_name': 'John Doe',
+                                    # 'team_id': 1,
+                                    # 'club_id': 2,
+                                    'team_name': 'Team A'
+                                },
+                                {
+                                    'player_id': 2,
+                                    'player_name': 'Alice Smith',
+                                    # 'team_id': 1,
+                                    # 'club_id': 2,
+                                    'team_name': 'Team A'
+                                }
+                            ]},
+                        {'away_team': [
+                            {
+                                'player_id': 3,
+                                'player_name': 'Bob Johnson',
+                                # 'team_id': 100,
+                                # 'club_id': 200,
+                                'team_name': 'Team B'
+                            },
+                            {
+                                'player_id': 4,
+                                'player_name': 'Eve Williams',
+                                # 'team_id': 100,
+                                # 'club_id': 200,
+
+                                'team_name': 'Team B'
+                            }
+                        ]
+                        }
+                    ]
+                 }
+            ]
+        }
+        expected_df = pd.DataFrame({
+            'player_id': [1, 2, 3, 4],
+            'player_name': ['John Doe', 'Alice Smith', 'Bob Johnson', 'Eve Williams'],
+
+
+            'team_name': ['Team A', 'Team A', 'Team B', 'Team B'],
+            'team_id': [1, 1, 100, 100],
+            'club_id': [2, 2, 200, 200]
+        })
+        df = self.utils._get_players_used_in_match(
+            match_id, api_key='test_api_key')
+        pd.testing.assert_frame_equal(df, expected_df)
 
 
 if __name__ == '__main__':

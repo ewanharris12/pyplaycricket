@@ -125,6 +125,7 @@ class u():
         else:
             self.logger.info('No bowling')
             bowl = pd.DataFrame(columns=config.STANDARD_BOWLING_COLS)
+        # bowl['bowler_id'] = bowl['bowler_id'].astype('int')
         return bowl
 
     def _standardise_bat(self, bat):
@@ -150,6 +151,7 @@ class u():
         else:
             self.logger.info('No batting')
             bat = pd.DataFrame(columns=config.STANDARD_BATTING_COLS)
+        # bat['batsman_id'] = bat['batsman_id'].astype('int')
         return bat
 
     def _get_result_letter(self, data, team_ids):
@@ -190,9 +192,9 @@ class u():
         - df (pandas.DataFrame): The cleaned league table dataframe.
         """
         df.columns = [i.upper() for i in df.columns]
-        wins = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
-        draws = ['WD', 'LD', 'ED']
-        losses = ['L', 'TL', 'LOL', 'DLL']
+        wins = config.LEAGUE_TABLE_WIN_TYPES
+        draws = config.LEAGUE_TABLE_DRAW_TYPES
+        losses = config.LEAGUE_TABLE_LOSS_TYPES
 
         if 'W - Total wins' in key:
             wins.remove('W')
@@ -231,7 +233,7 @@ class u():
         """
 
         self.logger.info(f'Making request to: {url}')
-        req = requests.get(url)
+        req = self.req_session.get(url)
         self.logger.info(f'Req response: {req.status_code}')
         if req.status_code != 200:
             raise Exception(f'ERROR ({req.status_code}): {req.reason}')
@@ -335,3 +337,36 @@ class u():
             return None
         else:
             return runs/innings
+
+    def _get_players_used_in_match(self, match_id: int, api_key: str):
+        """
+        Retrieves the players used in a specific match.
+
+        Args:
+            match_id (int): The ID of the match.
+
+        Returns:
+            pandas.DataFrame: A DataFrame containing the players used in the match.
+        """
+        data = self._make_api_request(
+            config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=api_key))
+
+        home_t = pd.json_normalize(
+            data['match_details'][0]['players'][0]['home_team'])
+        home_t['team_id'] = int(data['match_details'][0]['home_team_id'])
+        home_t['club_id'] = int(data['match_details'][0]['home_club_id'])
+
+        away_t = pd.json_normalize(
+            data['match_details'][0]['players'][1]['away_team'])
+        away_t['team_id'] = int(data['match_details'][0]['away_team_id'])
+        away_t['club_id'] = int(data['match_details'][0]['away_club_id'])
+
+        teams = pd.concat([home_t, away_t]).reset_index(drop=True)
+        teams['match_id'] = match_id
+        return teams
+
+    def _clean_column_names(self, x):
+        if x[1] == '':
+            return x[0]
+        else:
+            return x[0] + '_' + x[1]

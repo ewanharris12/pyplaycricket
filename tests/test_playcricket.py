@@ -159,57 +159,6 @@ class TestPlayCricket(unittest.TestCase):
         self.assertEqual(result, expected_result)
 
     @patch.object(pc, '_make_api_request')
-    def test_get_players_used_in_match(self, mock_make_api_request):
-        match_id = 1
-        mock_make_api_request.return_value = {
-            'match_details': [
-                {'home_team_id': 1,
-                    'away_team_id': 100,
-                    'players': [
-                        {
-                            'home_team': [
-                                {
-                                    'player_id': 1,
-                                    'player_name': 'John Doe',
-                                    'team_id': 1,
-                                    'team_name': 'Team A'
-                                },
-                                {
-                                    'player_id': 2,
-                                    'player_name': 'Alice Smith',
-                                    'team_id': 1,
-                                    'team_name': 'Team A'
-                                }
-                            ]},
-                        {'away_team': [
-                            {
-                                'player_id': 3,
-                                'player_name': 'Bob Johnson',
-                                'team_id': 100,
-                                'team_name': 'Team B'
-                            },
-                            {
-                                'player_id': 4,
-                                'player_name': 'Eve Williams',
-                                'team_id': 100,
-                                'team_name': 'Team B'
-                            }
-                        ]
-                        }
-                    ]
-                 }
-            ]
-        }
-        expected_df = pd.DataFrame({
-            'player_id': [1, 2, 3, 4],
-            'player_name': ['John Doe', 'Alice Smith', 'Bob Johnson', 'Eve Williams'],
-            'team_id': [1, 1, 100, 100],
-            'team_name': ['Team A', 'Team A', 'Team B', 'Team B']
-        })
-        df = self.pc_instance._get_players_used_in_match(match_id)
-        pd.testing.assert_frame_equal(df, expected_df)
-
-    @patch.object(pc, '_make_api_request')
     def test_get_innings_total_scores(self, mock_make_api_request):
         match_id = 6178722
         TESTDATA_FILENAME = os.path.join(os.path.dirname(

@@ -22,7 +22,7 @@ NUMBER_OF_PLAYERS_STATS_ON_GRAPHICS = 3
 
 # team_dict =
 TEAM_NAME_TO_IDS_LOOKUP = {'1s': 59723, '2s': 59724, '3s': 241803,
-                           '4s': 267647, '5s': 87177, 'Barbarians': 279276, 'Badgers': 268144, 'Honey Badgers': 47517, 'Friendly': 320697}
+                           '4s': 267647, '5s': 87177, 'Barbarians': 279276, 'Badgers': 268144, 'Honey Badgers': 368707, 'Friendly': 320697}
 # , 'Sunday XI': 325401
 TEAM_NAMES = ['Brixton Barbarians', 'Alleyn CC']
 
@@ -32,3 +32,7 @@ STATS_TOTALS_FIELDING_COLUMNS = ['rank', 'fielder_name', 'dismissals']
 
 INDIVIDUAL_PERFORMANCES_BATTING_COLUMNS = ['stat', 'title']
 INDIVIDUAL_PERFORMANCES_BOWLING_COLUMNS = ['stat', 'title']
+
+LEAGUE_TABLE_WIN_TYPES = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
+LEAGUE_TABLE_DRAW_TYPES = ['WD', 'LD', 'ED']
+LEAGUE_TABLE_LOSS_TYPES = ['L', 'LT', 'TL', 'LOL', 'DLL']
