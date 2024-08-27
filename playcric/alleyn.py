@@ -73,12 +73,13 @@ class acc(pc):
 
         return team_names, innings_scores
 
-    def get_individual_performances_for_graphic(self, match_ids: list = []):
+    def get_individual_performances_for_graphic(self, match_ids: list = [], players_to_include: int = 3):
         """
         Retrieves individual performances for a given list of match IDs and returns a summary string.
 
         Args:
             match_ids (list): A list of match IDs for which individual performances are to be retrieved.
+            players_to_include (int): Number of players per result to include
 
         Returns:
             str: A summary string containing the top batting and bowling performances for each match ID.
@@ -88,19 +89,19 @@ class acc(pc):
             print(match_id)
             bat, bowl = self.get_individual_stats(
                 match_id=match_id, stat_string=True)
-            for innings in [1, 2]:
+            for innings in sorted(bat['innings'].unique().tolist()):
                 batn = bat.loc[bat['innings'] == innings]
                 batn = batn.loc[batn['how_out'] != 'did not bat']
                 batn.sort_values(['runs', 'balls', 'not_out', 'position'], ascending=[
                                  False, True, False, True], inplace=True)
-                batn = batn.head(3)
+                batn = batn.head(players_to_include)
 
                 batting_names = [i.upper()
                                  for i in batn['initial_name'].tolist()]
                 batting_stats = batn['stat'].tolist()
 
                 batting_names, batting_stats = self._make_sure_number_of_players_is_consistent(
-                    batting_names, batting_stats)
+                    batting_names, batting_stats, players_to_include=players_to_include)
 
                 stats_summary = self._add_to_stats_string(
                     stats_summary, batting_names, batting_stats)
@@ -110,14 +111,14 @@ class acc(pc):
                 bowln.sort_values(['wickets', 'runs', 'overs'], ascending=[
                                   False, True, False], inplace=True)
 
-                bowln = bowln.head(3)
+                bowln = bowln.head(players_to_include)
 
                 bowling_names = [i.upper()
                                  for i in bowln['initial_name'].tolist()]
                 bowling_stats = bowln['stat'].tolist()
 
                 bowling_names, bowling_stats = self._make_sure_number_of_players_is_consistent(
-                    bowling_names, bowling_stats)
+                    bowling_names, bowling_stats, players_to_include=players_to_include)
 
                 stats_summary = self._add_to_stats_string(
                     stats_summary, bowling_names, bowling_stats)
@@ -142,7 +143,7 @@ class acc(pc):
         stats_summary += '\n'
         return stats_summary
 
-    def _make_sure_number_of_players_is_consistent(self, names_list: list, stats_list: list):
+    def _make_sure_number_of_players_is_consistent(self, names_list: list, stats_list: list, players_to_include: int):
         """
         Ensures that the number of players is consistent by adding empty values to the lists if necessary.
 
@@ -153,8 +154,8 @@ class acc(pc):
         Returns:
             tuple: A tuple containing the updated names_list and stats_list.
         """
-        for i in range(0, 3):
-            if len(names_list) < 3:
+        for i in range(0, players_to_include):
+            if len(names_list) < players_to_include:
                 names_list.append(' ')
                 stats_list.append(' ')
         return names_list, stats_list
