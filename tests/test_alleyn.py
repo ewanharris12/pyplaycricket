@@ -54,7 +54,7 @@ class TestAlleyn(unittest.TestCase):
         expected_stats_list = ['100', '50', ' ']
 
         actual_names_list, actual_stats_list = acc_instance._make_sure_number_of_players_is_consistent(
-            names_list, stats_list)
+            names_list, stats_list, players_to_include=3)
 
         self.assertEqual(actual_names_list, expected_names_list)
         self.assertEqual(actual_stats_list, expected_stats_list)
@@ -195,6 +195,7 @@ class TestAlleyn(unittest.TestCase):
         match_ids = [1, 2, 3]
         team_ids = [1, 2, 3]
         for_graphics = False
+        group_by_team = False
         n_players = 10
 
         # Mock the return value of _get_individual_stats_from_all_games
@@ -202,12 +203,14 @@ class TestAlleyn(unittest.TestCase):
             pd.DataFrame({
                 'initial_name': ['John', 'Alice'],
                 'batsman_name': ['John Doe', 'Alice Smith'],
+                'batsman_id': [1, 2],
                 'runs': [100, 50],
                 'fours': [10, 5],
                 'sixes': [5, 2],
                 'balls': [100, 60],
                 'not_out': [0, 0],
                 'match_id': [1, 2],
+                'position': [5, 7],
                 'how_out': ['b', 'lbw']
             }),
             pd.DataFrame({
@@ -231,12 +234,17 @@ class TestAlleyn(unittest.TestCase):
             'rank': [1, 2],
             'initial_name': ['John', 'Alice'],
             'batsman_name': ['John Doe', 'Alice Smith'],
+            'batsman_id': [1, 2],
             'runs': [100, 50],
+            'top_score': [100, 50],
+            '50s': [0, 1],
+            '100s': [1, 0],
             'fours': [10, 5],
             'sixes': [5, 2],
             'balls': [100, 60],
             'not_out': [0, 0],
             'match_id': [1, 1],
+            'position': [5.0, 7.0],
             'innings_to_count': [1, 1],
             'average': [100.0, 50.0]
         })
@@ -246,11 +254,16 @@ class TestAlleyn(unittest.TestCase):
             'bowler_name': ['Bob Smith', 'Eve Johnson'],
             'bowler_id': [1, 2],
             'wickets': [5, 3],
+            'max_wickets': [5, 3],
+            '5fers': [1, 0],
             'balls': [60, 50],
             'maidens': [1, 0],
             'runs': [30, 20],
             'match_id': [1, 1],
-            'overs': ['10.0', '8.2']
+            'overs': ['10.0', '8.2'],
+            'average': [6.0, 6.67],
+            'sr': [12.0, 16.67],
+            'econ': [3.0, 2.4]
         })
 
         expected_fielding = pd.DataFrame({
@@ -261,12 +274,13 @@ class TestAlleyn(unittest.TestCase):
             'n_games': [2, 1]
         })
         batting, bowling, fielding = self.acc_instance.get_alleyn_season_totals(
-            match_ids, team_ids, for_graphics, n_players)
+            match_ids=match_ids, team_ids=team_ids, group_by_team=group_by_team, for_graphics=for_graphics, n_players=n_players)
 
         # batting['runs'] = batting['runs'].astype('float')
 
         pd.testing.assert_frame_equal(batting, expected_batting)
-        pd.testing.assert_frame_equal(bowling, expected_bowling)
+        pd.testing.assert_frame_equal(
+            bowling.round(2), expected_bowling.round(2))
         pd.testing.assert_frame_equal(fielding, expected_fielding)
 
     def test_extract_string_for_graphic(self):
@@ -409,24 +423,28 @@ class TestAlleyn(unittest.TestCase):
             pd.DataFrame({
                 'player_name': ['John Doe', 'Alice Smith'],
                 'player_id': [1, 2],
-                'team_id': [1, 2]
+                'team_id': [1, 2],
+                'match_id': [1, 1]
             }),
             pd.DataFrame({
                 'player_name': ['Bob Johnson', 'Eve Brown'],
                 'player_id': [3, 4],
-                'team_id': [1, 3]
+                'team_id': [1, 3],
+                'match_id': [2, 2]
             }),
             pd.DataFrame({
                 'player_name': ['Charlie Davis', 'Frank Wilson'],
                 'player_id': [5, 6],
-                'team_id': [2, 3]
+                'team_id': [1, 3],
+                'match_id': [3, 3]
             })
         ]
 
         expected_players = pd.DataFrame({
             'player_name': ['John Doe', 'Alice Smith', 'Bob Johnson', 'Eve Brown', 'Charlie Davis', 'Frank Wilson'],
             'player_id': [1, 2, 3, 4, 5, 6],
-            'team_id': [1, 2, 1, 3, 2, 3]
+            'team_id': [1, 2, 1, 3, 1, 3],
+            'match_id': [1, 1, 2, 2, 3, 3]
         })
 
         players = self.acc_instance.get_all_players_involved(

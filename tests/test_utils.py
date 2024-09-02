@@ -418,7 +418,8 @@ class TestUtils(unittest.TestCase):
 
             'team_name': ['Team A', 'Team A', 'Team B', 'Team B'],
             'team_id': [1, 1, 100, 100],
-            'club_id': [2, 2, 200, 200]
+            'club_id': [2, 2, 200, 200],
+            'match_id': [1, 1, 1, 1]
         })
         df = self.utils._get_players_used_in_match(
             match_id, api_key='test_api_key')

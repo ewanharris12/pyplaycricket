@@ -328,7 +328,7 @@ class acc(pc):
             team_ids = self.team_ids
 
         batting, bowling, fielding = self.get_stat_totals(
-            match_ids, team_ids, group_by_team, for_graphics, n_players)
+            match_ids=match_ids, team_ids=team_ids, group_by_team=group_by_team, for_graphics=for_graphics, n_players=n_players)
         return batting, bowling, fielding
 
     def _extract_string_for_graphic(self, df):

@@ -36,3 +36,5 @@ INDIVIDUAL_PERFORMANCES_BOWLING_COLUMNS = ['stat', 'title']
 LEAGUE_TABLE_WIN_TYPES = ['TW', 'LOW', 'DLW', 'W', 'WT', 'W-', 'WCN']
 LEAGUE_TABLE_DRAW_TYPES = ['WD', 'LD', 'ED']
 LEAGUE_TABLE_LOSS_TYPES = ['L', 'LT', 'TL', 'LOL', 'DLL']
+
+GROUPBY_AGGS = ['_sum', '_max', '_nunique', '_mean']

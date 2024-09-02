@@ -233,7 +233,7 @@ class u():
         """
 
         self.logger.info(f'Making request to: {url}')
-        req = self.req_session.get(url)
+        req = requests.get(url)
         self.logger.info(f'Req response: {req.status_code}')
         if req.status_code != 200:
             raise Exception(f'ERROR ({req.status_code}): {req.reason}')

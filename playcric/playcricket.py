@@ -16,7 +16,7 @@ class pc(u):
         self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
         self.team_names = []
-        self.req_session = cachecontrol.CacheControl(requests.Session())
+        # self.req_session = cachecontrol.CacheControl(requests.Session())
 
     def list_registered_players(self, site_id: int = None):
         """
@@ -85,7 +85,7 @@ class pc(u):
 
         Args:
             competition_id (int): The ID of the competition.
-            simple (bool, optional): Flag to indicate whether to return a simplified version of the league table. 
+            simple (bool, optional): Flag to indicate whether to return a simplified version of the league table.
                                     Defaults to False.
 
         Returns:
@@ -315,7 +315,13 @@ class pc(u):
 
         batting = batting.loc[batting['how_out'] != 'did not bat']
         batting = batting.groupby(batting_groupby, as_index=False).agg(
-            {'runs': 'sum', 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique, 'position': 'mean'})
+            {'runs': ['sum', 'max', lambda x: x[(x >= 50) & (x < 100)].count(), lambda x: x[x >= 100].count()], 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique, 'position': 'mean'})
+        batting.columns = [self._clean_column_names(
+            col) for col in batting.columns]
+        batting.rename(columns={'runs_<lambda_0>': '50s', 'runs_<lambda_1>': '100s',
+                       'runs_sum': 'runs', 'runs_max': 'top_score'}, inplace=True)
+        for agg in config.GROUPBY_AGGS:
+            batting.columns = [col.replace(agg, '') for col in batting.columns]
         batting['innings_to_count'] = batting['match_id']-batting['not_out']
         batting['average'] = batting.apply(
             lambda row: self._calculate_batting_average(row=row), axis=1)
@@ -325,7 +331,13 @@ class pc(u):
         batting['rank'] += 1
 
         bowling = bowling.groupby(bowling_groupby, as_index=False).agg(
-            {'wickets': 'sum', 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
+            {'wickets': ['sum', 'max', lambda x: x[x >= 5].count()], 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
+        bowling.columns = [self._clean_column_names(
+            col) for col in bowling.columns]
+        bowling.rename(columns={'wickets_sum': 'wickets', 'wickets_max': 'max_wickets',
+                       'wickets_<lambda_0>': '5fers'}, inplace=True)
+        for agg in config.GROUPBY_AGGS:
+            bowling.columns = [col.replace(agg, '') for col in bowling.columns]
         bowling = bowling.sort_values(['wickets', 'runs', 'balls', 'match_id'], ascending=[
             False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
         bowling['overs'] = bowling['balls'].apply(
