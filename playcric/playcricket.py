@@ -97,6 +97,7 @@ class pc(u):
 
         df = pd.json_normalize(data['league_table'][0]['values'])
         df.rename(columns=data['league_table'][0]['headings'], inplace=True)
+        # df = df[list(set(df.columns.tolist()))]
         key = [i.replace('&nbsp;', '')
                for i in data['league_table'][0]['key'].split(',')]
         df = self._clean_league_table(df=df, simple=simple, key=key)
@@ -243,7 +244,7 @@ class pc(u):
         innings_n = 1
         for innings in data['innings']:
             bat = pd.json_normalize(innings['bat'])
-            if bat.empty:
+            if (bat.empty):
                 continue
             batting_name = innings['team_batting_name']
             batting_id = int(innings['team_batting_id'])
@@ -255,6 +256,8 @@ class pc(u):
             bowling_name = team_name_lookup.get(bowling_id)
 
             bowl = pd.json_normalize(innings['bowl'])
+            if bowl.empty:
+                continue
             bowl = self._add_team_name_id_and_innings(
                 bowl, bowling_name, bowling_id, batting_name, batting_id, innings_n, match_id)
 
@@ -356,10 +359,12 @@ class pc(u):
                         'match_id_nunique': 'n_games'}, inplace=True)
         fielding.sort_values(['dismissals', 'n_games'], ascending=[
             False, True], inplace=True)
+
+        fielding.dropna(subset=['fielder_name'], inplace=True)
+        fielding = fielding.loc[fielding['fielder_name'] != '']
+        # fielding.reset_index(drop=True, inplace=True)
         fielding = fielding.reset_index(
             drop=True).reset_index().rename(columns={'index': 'rank'})
-
-        fielding = fielding.loc[fielding['fielder_name'] != '']
         fielding['rank'] += 1
 
         if for_graphics:

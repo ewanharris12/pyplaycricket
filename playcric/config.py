@@ -3,10 +3,10 @@ MATCHES_URL = 'http://play-cricket.com/api/v2/matches.json?&site_id={site_id}&se
 LEAGUE_TABLE_URL = 'http://play-cricket.com/api/v2/league_table.json?division_id={competition_id}&api_token={api_key}'
 MATCH_DETAIL_URL = 'http://play-cricket.com/api/v2/match_detail.json?&match_id={match_id}&api_token={api_key}'
 
-NEUTRAL_RESULTS = ['C', 'A', 'D']
+NEUTRAL_RESULTS = ['C', 'A', 'D', 'CON']
 RESULTS_SWAPPER = {'L': 'W', 'W': 'L'}
 RESULTS_TEXT = {'C': 'Match Cancelled', 'A': 'Abandoned',
-                'D': 'Drew', 'L': 'Lost by', 'W': 'Won by'}
+                'CON': 'Match conceded', 'D': 'Drew', 'L': 'Lost by', 'W': 'Won by'}
 
 STANDARD_BATTING_COLS = ['position', 'batsman_name', 'batsman_id', 'how_out', 'fielder_name',
                          'fielder_id', 'bowler_name', 'bowler_id', 'runs', 'fours', 'sixes',

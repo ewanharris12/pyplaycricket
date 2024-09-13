@@ -196,8 +196,8 @@ class u():
         draws = config.LEAGUE_TABLE_DRAW_TYPES
         losses = config.LEAGUE_TABLE_LOSS_TYPES
 
-        if 'W - Total wins' in key:
-            wins.remove('W')
+        # if 'W - Total wins' in key:
+        #     wins.remove('W')
 
         for col in wins+draws+losses:
             if col in df.columns:
