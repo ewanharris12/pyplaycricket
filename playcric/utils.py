@@ -143,7 +143,7 @@ class u():
         """
         if not bat.empty:
             bat['not_out'] = np.where(bat['how_out'].isin(
-                ['not out', 'retired not out']), 1, 0)
+                ['not out', 'retired not out', 'did not bat']), 1, 0)
             for col in ['runs', 'fours', 'sixes', 'balls', 'position']:
                 bat[col] = bat[col].replace('', '0').astype('int')
             bat['initial_name'] = bat['batsman_name'].apply(
@@ -353,13 +353,17 @@ class u():
 
         home_t = pd.json_normalize(
             data['match_details'][0]['players'][0]['home_team'])
-        home_t['team_id'] = int(data['match_details'][0]['home_team_id'])
-        home_t['club_id'] = int(data['match_details'][0]['home_club_id'])
+        home_t['team_id'] = int(data['match_details'][0]['home_team_id']
+                                ) if data['match_details'][0]['home_team_id'] not in [None, ''] else None
+        home_t['club_id'] = int(data['match_details'][0]['home_club_id']
+                                ) if data['match_details'][0]['home_club_id'] not in [None, ''] else None
 
         away_t = pd.json_normalize(
             data['match_details'][0]['players'][1]['away_team'])
-        away_t['team_id'] = int(data['match_details'][0]['away_team_id'])
-        away_t['club_id'] = int(data['match_details'][0]['away_club_id'])
+        away_t['team_id'] = int(data['match_details'][0]['away_team_id']
+                                ) if data['match_details'][0]['away_team_id'] not in [None, ''] else None
+        away_t['club_id'] = int(data['match_details'][0]['away_club_id']
+                                ) if data['match_details'][0]['away_club_id'] not in [None, ''] else None
 
         teams = pd.concat([home_t, away_t]).reset_index(drop=True)
         teams['match_id'] = match_id
