@@ -7,7 +7,7 @@ import logging
 
 
 class acc(pc):
-    def __init__(self, api_key, site_id, club_names: list = [], team_name_to_ids_lookup: dict = {}):
+    def __init__(self, api_key, site_id, team_names: list = [], team_name_to_ids_lookup: dict = {}):
         """
         Initialize the Alleyn class.
 
@@ -17,16 +17,16 @@ class acc(pc):
             club_names (list, optional): A list of club names. Defaults to an empty list.
             team_name_to_ids_lookup (dict, optional): A dict of team name to team ID mappings. Defaults to an empty dict.
         """
-        super().__init__(api_key=api_key, site_id=site_id, club_names=club_names,
+        super().__init__(api_key=api_key, site_id=site_id, club_names=team_names,
                          team_name_to_ids_lookup=team_name_to_ids_lookup)
         self.logger = logging.getLogger('pyplaycricket.alleyn')
         # self.api_key = api_key
         # self.logger.info(f'Setting site_id as {site_id}')
         # self.site_id = site_id
-        if not club_names:
+        if not team_names:
             self.team_names = config.TEAM_NAMES
         else:
-            self.team_names = club_names
+            self.team_names = team_names
 
         if not team_name_to_ids_lookup:
             self.team_name_to_ids_lookup = config.TEAM_NAME_TO_IDS_LOOKUP
