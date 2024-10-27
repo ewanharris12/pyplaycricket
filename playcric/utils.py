@@ -374,3 +374,60 @@ class u():
             return x[0]
         else:
             return x[0] + '_' + x[1]
+
+    def _aggregate_fielding_stats(self, fielding, fielding_groupby):
+        fielding = fielding.groupby(
+            fielding_groupby, as_index=False).agg({'match_id': ['count', pd.Series.nunique]})
+        fielding.columns = [self._clean_column_names(
+            col) for col in fielding.columns]
+        fielding.rename(columns={'match_id_count': 'dismissals',
+                        'match_id_nunique': 'n_games'}, inplace=True)
+        fielding.sort_values(['dismissals', 'n_games'], ascending=[
+            False, True], inplace=True)
+
+        fielding.dropna(subset=['fielder_name'], inplace=True)
+        fielding = fielding.loc[fielding['fielder_name'] != '']
+        # fielding.reset_index(drop=True, inplace=True)
+        fielding = fielding.reset_index(
+            drop=True).reset_index().rename(columns={'index': 'rank'})
+        fielding['rank'] += 1
+        return fielding
+
+    def _aggregate_bowling_stats(self, bowling, bowling_groupby):
+        bowling = bowling.groupby(bowling_groupby, as_index=False).agg(
+            {'wickets': ['sum', 'max', lambda x: x[x >= 5].count()], 'balls': 'sum', 'maidens': 'sum', 'runs': 'sum', 'match_id': pd.Series.nunique})
+        bowling.columns = [self._clean_column_names(
+            col) for col in bowling.columns]
+        bowling.rename(columns={'wickets_sum': 'wickets', 'wickets_max': 'max_wickets',
+                       'wickets_<lambda_0>': '5fers'}, inplace=True)
+        for agg in config.GROUPBY_AGGS:
+            bowling.columns = [col.replace(agg, '') for col in bowling.columns]
+        bowling = bowling.sort_values(['wickets', 'runs', 'balls', 'match_id'], ascending=[
+            False, True, True, True]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+        bowling['overs'] = bowling['balls'].apply(
+            lambda x: self._calculate_overs(x))
+        bowling['average'] = bowling['runs']/bowling['wickets']
+        bowling['sr'] = bowling['balls']/bowling['wickets']
+        bowling['econ'] = (bowling['runs']/bowling['balls'])*6
+
+        bowling['rank'] += 1
+        return bowling
+
+    def _aggregate_batting_stats(self, batting, batting_groupby):
+        batting = batting.loc[batting['how_out'] != 'did not bat']
+        batting = batting.groupby(batting_groupby, as_index=False).agg(
+            {'runs': ['sum', 'max', lambda x: x[(x >= 50) & (x < 100)].count(), lambda x: x[x >= 100].count()], 'fours': 'sum', 'sixes': 'sum', 'balls': 'sum', 'not_out': 'sum', 'match_id': pd.Series.nunique, 'position': 'mean'})
+        batting.columns = [self._clean_column_names(
+            col) for col in batting.columns]
+        batting.rename(columns={'runs_<lambda_0>': '50s', 'runs_<lambda_1>': '100s',
+                       'runs_sum': 'runs', 'runs_max': 'top_score'}, inplace=True)
+        for agg in config.GROUPBY_AGGS:
+            batting.columns = [col.replace(agg, '') for col in batting.columns]
+        batting['innings_to_count'] = batting['match_id']-batting['not_out']
+        batting['average'] = batting.apply(
+            lambda row: self._calculate_batting_average(row=row), axis=1)
+        batting = batting.sort_values(['runs', 'average', 'balls', 'fours', 'sixes'], ascending=[
+            False, False, True, False, False]).reset_index(drop=True).reset_index().rename(columns={'index': 'rank'})
+
+        batting['rank'] += 1
+        return batting
