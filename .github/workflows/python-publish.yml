@@ -4,6 +4,8 @@ on:
   workflow_dispatch:
     tags:
       - "*"
+  release:
+    types: [published]
 
 jobs:
   build-n-publish:
