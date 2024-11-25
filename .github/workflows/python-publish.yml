@@ -1,4 +1,8 @@
 name: Publish Python 🐍 distributions 📦 to PyPI
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 
 on:
   workflow_dispatch:
@@ -31,10 +35,6 @@ jobs:
         run: >-
           python setup.py sdist bdist_wheel
       - name: Publish distribution 📦 to PyPI
-        permissions:
-          contents: read
-          pages: write
-          id-token: write
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}
