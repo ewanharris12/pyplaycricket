@@ -1,9 +1,4 @@
 name: Publish Python 🐍 distributions 📦 to PyPI
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 on:
   workflow_dispatch:
     tags:
@@ -14,6 +9,10 @@ on:
 jobs:
   build-n-publish:
     name: Build and publish Python 🐍 distributions 📦 to PyPI
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@master
