@@ -277,8 +277,8 @@ class acc(pc):
             Exception: If none of the teams in self.team_names are found in the league table.
 
         """
-        assert (n_teams % 2 == 1, "Please choose an odd number for n_teams")
-        assert (len(league_table) > n_teams, "Not enough teams in the league")
+        assert n_teams % 2 == 1, "Please choose an odd number for n_teams"
+        assert len(league_table) > n_teams, "Not enough teams in the league"
 
         team_index = 1000
         for team in self.team_names:
