@@ -162,12 +162,12 @@ class TestPlayCricket(unittest.TestCase):
     def test_get_innings_total_scores(self, mock_make_api_request):
         match_id = 6178722
         TESTDATA_FILENAME = os.path.join(os.path.dirname(
-            __file__), 'match_details.json')
+            __file__), 'test_files/match_details.json')
         f = open(TESTDATA_FILENAME)
 
         mock_make_api_request.return_value = json.load(f)
         EXPDATA_FILENAME = os.path.join(os.path.dirname(
-            __file__), 'get_innings_total_scores.PKL')
+            __file__), 'test_files/get_innings_total_scores.PKL')
         expected_df = pd.read_pickle(EXPDATA_FILENAME)
         df = self.pc_instance.get_innings_total_scores(match_id)
         pd.testing.assert_frame_equal(df, expected_df)
