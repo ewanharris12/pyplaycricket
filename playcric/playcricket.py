@@ -1,8 +1,5 @@
 import pandas as pd
 import logging
-import requests
-import cachecontrol
-
 
 from playcric import config
 from playcric.utils import u
