@@ -1,6 +1,6 @@
 import pandas as pd
 import logging
-
+import numpy as np
 from playcric import config
 from playcric.utils import u
 
@@ -217,8 +217,10 @@ class pc(u):
 
         partnerships = pd.concat(partnerships)
         if not partnerships.empty:
-            partnerships['score_added'] = partnerships['runs'].astype(
-                'int') - partnerships['runs'].astype('int').shift(1).fillna(0)
+            partnerships['runs'] = np.where(
+                partnerships['runs'] == '', None, partnerships['runs'])
+            partnerships['score_added'] = partnerships['runs'].fillna(0).astype(
+                'int') - partnerships['runs'].fillna(0).astype('int').shift(1)
         else:
             partnerships['score_added'] = None
         return partnerships
