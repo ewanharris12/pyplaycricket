@@ -100,7 +100,7 @@ class pc(u):
         # df = df[list(set(df.columns.tolist()))]
         key = [i.replace('&nbsp;', '')
                for i in data['league_table'][0]['key'].split(',')]
-        df = self._clean_league_table(df=df, simple=simple, key=key)
+        df = self._clean_league_table(df=df, simple=simple)
         if clean_names:
             df['TEAM'] = df['TEAM'].apply(
                 lambda x: self._clean_team_name(team=x))
