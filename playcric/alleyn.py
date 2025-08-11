@@ -7,34 +7,22 @@ import logging
 
 
 class acc(pc):
-    def __init__(self, api_key, site_id, team_names: list = [], team_name_to_ids_lookup: dict = {}):
+    def __init__(self, api_key, site_id, team_names: list = config.TEAM_NAMES, team_name_to_ids_lookup: dict = config.TEAM_NAME_TO_IDS_LOOKUP):
         """
         Initialize the Alleyn class.
 
         Args:
             api_key (str): The API key for accessing the Play-Cricket API.
             site_id (str): The ID of the Play-Cricket site.
-            club_names (list, optional): A list of club names. Defaults to an empty list.
+            team_names (list, optional): A list of team names. Defaults to an empty list.
             team_name_to_ids_lookup (dict, optional): A dict of team name to team ID mappings. Defaults to an empty dict.
         """
-        super().__init__(api_key=api_key, site_id=site_id, club_names=team_names,
+        super().__init__(api_key=api_key, site_id=site_id, team_names=team_names,
                          team_name_to_ids_lookup=team_name_to_ids_lookup)
         self.logger = logging.getLogger('pyplaycricket.alleyn')
         # self.api_key = api_key
         # self.logger.info(f'Setting site_id as {site_id}')
         # self.site_id = site_id
-        if not team_names:
-            self.team_names = config.TEAM_NAMES
-        else:
-            self.team_names = team_names
-
-        if not team_name_to_ids_lookup:
-            self.team_name_to_ids_lookup = config.TEAM_NAME_TO_IDS_LOOKUP
-        else:
-            self.team_name_to_ids_lookup = team_name_to_ids_lookup
-        self.team_ids = list(self.team_name_to_ids_lookup.values())
-        self.team_ids_to_names_lookup = {
-            v: k for k, v in self.team_name_to_ids_lookup.items()}
 
     def get_innings_scores(self, match_ids: list = []):
         """
@@ -205,23 +193,6 @@ class acc(pc):
             # print(result_string)
             all_result_strings += result_string
         return all_result_strings
-
-    def order_matches_for_the_graphics(self, matches: pd.DataFrame):
-        """
-        Orders the matches for the graphics.
-
-        Args:
-            matches (pd.DataFrame): The DataFrame containing the matches data.
-
-        Returns:
-            pd.DataFrame: The DataFrame with matches ordered by match date and club team name.
-        """
-        matches['club_team_name'] = np.where(matches['home_team_id'].isin(self.team_ids), matches['home_team_id'].apply(
-            lambda x: self.team_ids_to_names_lookup.get(int(x))), matches['away_team_id'].apply(lambda x: self.team_ids_to_names_lookup.get(int(x))))
-        matches.sort_values(['match_date', 'club_team_name'],
-                            ascending=True, inplace=True)
-
-        return matches
 
     def get_weekend_matches(self, matches: pd.DataFrame, saturday: datetime):
         """
