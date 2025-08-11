@@ -4,11 +4,12 @@ with open('requirements.txt') as f:
     required = f.read().splitlines()
 
 setup(name='pyplaycricket',
-      version='{{VERSION_PLACEHOLDER}}',
+      version='0.1',
       description='Iteracting with the playcricket API for statistical analysis and automated social media posts.',
       author='Ewan Harris',
       url='https://github.com/ewanharris12/pyplaycricket',
-      long_description=open('README.md').read(),
+    #   long_description=open('README.md').read(),
       long_description_content_type='text/markdown',
-      install_requires=required
+      py_modules=['alleyn', 'utils', 'playcric'],
+    #   install_requires=required
       )
