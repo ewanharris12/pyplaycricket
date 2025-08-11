@@ -177,7 +177,7 @@ class u():
             return config.RESULTS_SWAPPER.get(result_letter)
         return result_letter
 
-    def _clean_league_table(self, df, simple, key):
+    def _clean_league_table(self, df, simple):
         """
         Cleans the league table dataframe by converting column names to uppercase,
         converting certain columns to integer type, and performing calculations
