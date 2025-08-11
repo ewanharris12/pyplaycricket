@@ -73,7 +73,7 @@ class TestPlayCricket(unittest.TestCase):
             'home_team_name': ['Team A', 'Team C'],
             'away_team_id': [2, 4],
             'away_team_name': ['Team B', 'Team D'],
-            'competition_id': [1, 2],
+            'competition_id': [1.0, 2.0],
             'competition_type': ['League', 'Cup'],
             'match_date': pd.to_datetime(['2022-01-01', '2022-01-02']),
             'last_updated': pd.to_datetime(['2022-01-01', '2022-01-02'])

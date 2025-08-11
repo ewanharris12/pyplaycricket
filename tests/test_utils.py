@@ -190,7 +190,7 @@ class TestUtils(unittest.TestCase):
         })
 
         modified_df = self.utils._clean_league_table(
-            df, simple=True, key='W - Total wins')
+            df, simple=True)
 
         pd.testing.assert_frame_equal(modified_df, expected_result)
 
@@ -223,7 +223,7 @@ class TestUtils(unittest.TestCase):
                 expected_result[col] = 0
 
         modified_df = self.utils._clean_league_table(
-            df, simple=False, key='WD - Total wins and draws')
+            df, simple=False)
 
         pd.testing.assert_frame_equal(modified_df, expected_result)
 
