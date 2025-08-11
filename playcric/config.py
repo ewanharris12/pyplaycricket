@@ -22,7 +22,7 @@ NUMBER_OF_PLAYERS_STATS_ON_GRAPHICS = 3
 
 # team_dict =
 TEAM_NAME_TO_IDS_LOOKUP = {'1s': 59723, '2s': 59724, '3s': 241803,
-                           '4s': 267647, '5s': 87177, 'Barbarians': 279276, 'Badgers': 268144, 'Honey Badgers': 368707, 'Friendly': 320697}
+                           '4s': 267647, '5s': 394397, 'Barbarians': 279276, 'Badgers': 268144, 'Honey Badgers': 368707, 'Friendly': 320697}
 # , 'Sunday XI': 325401
 TEAM_NAMES = ['Brixton Barbarians', 'Alleyn CC']
 
