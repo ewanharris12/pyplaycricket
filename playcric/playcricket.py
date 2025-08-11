@@ -6,12 +6,16 @@ from playcric.utils import u
 
 
 class pc(u):
-    def __init__(self, api_key, site_id, club_names: list = [], team_name_to_ids_lookup: dict = {}):
+    def __init__(self, api_key, site_id, team_names: list = [], team_name_to_ids_lookup: dict = {}):
         self.api_key = api_key
         self.logger = logging.getLogger('pyplaycricket.playcricket')
         self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
-        self.team_names = []
+        self.team_names = team_names
+        self.team_name_to_ids_lookup = team_name_to_ids_lookup
+        self.team_ids = list(self.team_name_to_ids_lookup.values())
+        self.team_ids_to_names_lookup = {
+            v: k for k, v in self.team_name_to_ids_lookup.items()}
 
     def list_registered_players(self, site_id: int = None):
         """
@@ -44,6 +48,7 @@ class pc(u):
         Returns:
             pandas.DataFrame: A DataFrame containing the retrieved matches data.
         """
+        print(f'Getting all matches for season {season} with team_ids: {team_ids}, competition_ids: {competition_ids}, competition_types: {competition_types}')
         site_id = self._set_site_id(site_id)
         team_ids = self._convert_team_ids_to_ints(team_ids)
         data = self._make_api_request(config.MATCHES_URL.format(
@@ -55,6 +60,8 @@ class pc(u):
         for col in ['last_updated', 'match_date']:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], format='%d/%m/%Y')
+        for col in ['competition_id']:
+            df[col] = df[col].replace('', np.nan).astype('float')
         for col in ['home_team_id', 'away_team_id']:
             if col in df.columns:
                 df[col] = df[col].astype('int')
@@ -303,19 +310,7 @@ class pc(u):
         batting, bowling, fielding = self.get_individual_stats_from_all_games(
             match_ids, team_ids, stat_string=False)
 
-        batting_groupby = ['initial_name', 'batsman_name', 'batsman_id']
-        bowling_groupby = ['initial_name', 'bowler_name', 'bowler_id']
-        fielding_groupby = ['fielder_name', 'fielder_id']
-        if group_by_team:
-            batting_groupby += ['team_id']
-            bowling_groupby += ['team_id']
-            fielding_groupby += ['team_id']
-
-        batting = self._aggregate_batting_stats(batting, batting_groupby)
-
-        bowling = self._aggregate_bowling_stats(bowling, bowling_groupby)
-
-        fielding = self._aggregate_fielding_stats(fielding, fielding_groupby)
+        batting, bowling, fielding = self.aggregate_stats(group_by_team, batting, bowling, fielding)
 
         if for_graphics:
             batting = batting[config.STATS_TOTALS_BATTING_COLUMNS].head(
@@ -329,6 +324,37 @@ class pc(u):
             bowling = self._extract_string_for_graphic(bowling)
             fielding = self._extract_string_for_graphic(fielding)
         return batting, bowling, fielding
+
+    def aggregate_stats(self, group_by_team, batting, bowling, fielding):
+        """
+        Aggregates batting, bowling, and fielding statistics based on specified grouping criteria.
+
+        Args:
+            group_by_team (bool): If True, aggregates stats by team in addition to player.
+            batting (pd.DataFrame): DataFrame containing batting statistics.
+            bowling (pd.DataFrame): DataFrame containing bowling statistics.
+            fielding (pd.DataFrame): DataFrame containing fielding statistics.
+
+        Returns:
+            tuple: A tuple containing three DataFrames:
+                - Aggregated batting statistics.
+                - Aggregated bowling statistics.
+                - Aggregated fielding statistics.
+        """
+        batting_groupby = ['initial_name', 'batsman_name', 'batsman_id']
+        bowling_groupby = ['initial_name', 'bowler_name', 'bowler_id']
+        fielding_groupby = ['fielder_name', 'fielder_id']
+        if group_by_team:
+            batting_groupby += ['team_id']
+            bowling_groupby += ['team_id']
+            fielding_groupby += ['team_id']
+
+        batting = self._aggregate_batting_stats(batting, batting_groupby)
+
+        bowling = self._aggregate_bowling_stats(bowling, bowling_groupby)
+
+        fielding = self._aggregate_fielding_stats(fielding, fielding_groupby)
+        return batting,bowling,fielding
 
     def get_individual_stats_from_all_games(self,  match_ids: list, team_ids: list = [], stat_string: bool = False):
         """
@@ -380,3 +406,23 @@ class pc(u):
         bowling.reset_index(inplace=True, drop=True)
 
         return batting, bowling, fielding
+
+    def order_matches_for_the_graphics(self, matches: pd.DataFrame):
+        """
+        Orders the matches for the graphics.
+
+        Args:
+            matches (pd.DataFrame): The DataFrame containing the matches data.
+
+        Returns:
+            pd.DataFrame: The DataFrame with matches ordered by match date and club team name.
+        """
+        if self.team_ids is None:
+            raise ValueError(
+                'Please set the team_ids attribute before calling this method.')
+        matches['club_team_name'] = np.where(matches['home_team_id'].isin(self.team_ids), matches['home_team_id'].apply(
+            lambda x: self.team_ids_to_names_lookup.get(int(x))), matches['away_team_id'].apply(lambda x: self.team_ids_to_names_lookup.get(int(x))))
+        matches.sort_values(['match_date', 'club_team_name'],
+                            ascending=True, inplace=True)
+
+        return matches
