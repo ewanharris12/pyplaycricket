@@ -19,3 +19,19 @@ def get_opposition_fixtures(alleyn_object, oppo_club_id):
     oppo_fixtures = oppo_fixtures.loc[oppo_fixtures['game_type'] == 'Standard']
     oppo_fixtures = oppo_fixtures.loc[oppo_fixtures['competition_type'] == 'League']
     return oppo_fixtures
+
+def get_todays_date():
+    from datetime import datetime
+    return datetime.now().strftime('%Y-%m-%d')
+
+def get_last_saturday():
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    last_saturday = today - timedelta(days=(today.weekday() + 2) % 7)
+    return last_saturday.strftime('%Y-%m-%d')
+
+def get_next_saturday():
+    from datetime import datetime, timedelta
+    today = datetime.now()
+    next_saturday = today + timedelta(days=(5 - today.weekday()) % 7)
+    return next_saturday.strftime('%Y-%m-%d')
