@@ -162,7 +162,7 @@ class acc(pc):
         """
         all_result_strings = ''
         for match_id in match_ids:
-            # print(match_id)
+            print(match_id)
             self.logger.info(f'Match ID: {match_id}')
             data = self._make_api_request(
                 config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
@@ -248,8 +248,9 @@ class acc(pc):
             Exception: If none of the teams in self.team_names are found in the league table.
 
         """
-        assert n_teams % 2 == 1, "Please choose an odd number for n_teams"
-        assert len(league_table) > n_teams, "Not enough teams in the league"
+        # if n_teams % 2 != 1:
+        #     n_teams += 1
+        assert len(league_table) >= n_teams, "Not enough teams in the league"
 
         team_index = 1000
         for team in self.team_names:
@@ -264,7 +265,7 @@ class acc(pc):
             raise Exception(
                 f"None of the teams ({','.join(self.team_names)}) in the league table")
         buffer = int((n_teams-1)/2)
-        if team_index == 0:
+        if (team_index == 0) or (n_teams == len(league_table)):
             league_table = league_table.iloc[0:n_teams]
         else:
             league_table = league_table.iloc[max(
