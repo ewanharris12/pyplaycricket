@@ -49,7 +49,7 @@ class TestPlayCricket(unittest.TestCase):
                     'home_team_name': 'Team A',
                     'away_team_id': 2,
                     'away_team_name': 'Team B',
-                    'competition_id': 1,
+                    'competition_id': 1.0,
                     'competition_type': 'League',
                     'match_date': '01/01/2022',
                     'last_updated': '01/01/2022'
@@ -60,7 +60,7 @@ class TestPlayCricket(unittest.TestCase):
                     'home_team_name': 'Team C',
                     'away_team_id': 4,
                     'away_team_name': 'Team D',
-                    'competition_id': 2,
+                    'competition_id': 2.0,
                     'competition_type': 'Cup',
                     'match_date': '02/01/2022',
                     'last_updated': '02/01/2022'

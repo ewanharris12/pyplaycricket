@@ -186,7 +186,6 @@ class u():
         Parameters:
         - df (pandas.DataFrame): The league table dataframe to be cleaned.
         - simple (bool): Flag indicating whether to perform simple cleaning or not.
-        - key (str): The key used to determine the cleaning process.
 
         Returns:
         - df (pandas.DataFrame): The cleaned league table dataframe.
