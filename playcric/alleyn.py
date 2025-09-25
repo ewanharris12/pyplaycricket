@@ -162,7 +162,7 @@ class acc(pc):
         """
         all_result_strings = ''
         for match_id in match_ids:
-            print(match_id)
+            # print(match_id)
             self.logger.info(f'Match ID: {match_id}')
             data = self._make_api_request(
                 config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
