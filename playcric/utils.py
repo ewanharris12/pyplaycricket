@@ -308,8 +308,8 @@ class u():
             df['wins'] = df[wins].sum(axis=1).astype('int')
             df['draws'] = df[draws].sum(axis=1).astype('int')
             df['losses'] = df[losses].sum(axis=1).astype('int')
-            df = df[['POSITION', 'TEAM', 'wins', 'draws', 'losses', 'PTS']]
-            df.rename(columns={'wins': 'W', 'draws': 'D', 'losses': 'L'}, inplace=True)
+            df = df[['POSITION', 'TEAM', 'wins', 'draws', 'losses', 'PTS']].rename(
+                columns={'wins': 'W', 'draws': 'D', 'losses': 'L'})
 
         return df
 
