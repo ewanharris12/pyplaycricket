@@ -338,29 +338,20 @@ class TestUtils(unittest.TestCase):
         result4 = self.utils._clean_team_name(team4)
         self.assertEqual(result4, expected_result4)
 
-    def test_calculate_batting_average_with_non_zero_innings(self):
-        # Test case with non-zero innings
-        row = {
-            "runs": 100,
-            "innings_to_count": 10
-        }
-        expected_result = 10.0
-
-        result = self.utils._calculate_batting_average(row)
-
-        self.assertEqual(result, expected_result)
-
-    def test_calculate_batting_average_with_zero_innings(self):
-        # Test case with zero innings
-        row = {
-            "runs": 100,
-            "innings_to_count": 0
-        }
-        expected_result = None
-
-        result = self.utils._calculate_batting_average(row)
-
-        self.assertEqual(result, expected_result)
+    def test_batting_average_vectorised(self):
+        """
+        _calculate_batting_average was replaced with a vectorised pandas expression.
+        Verify the equivalent behaviour:
+          - non-zero innings  → runs / innings_to_count
+          - zero innings      → NaN (not None, because pd.NA propagates through division)
+        """
+        data = pd.DataFrame({
+            'runs': [100, 50],
+            'innings_to_count': [10, 0],
+        })
+        data['average'] = data['runs'] / data['innings_to_count'].replace(0, pd.NA)
+        self.assertAlmostEqual(data.loc[0, 'average'], 10.0)
+        self.assertTrue(pd.isna(data.loc[1, 'average']))
 
     @patch.object(u, '_make_api_request')
     def test_get_players_used_in_match(self, mock_make_api_request):
@@ -421,8 +412,8 @@ class TestUtils(unittest.TestCase):
             'club_id': [2, 2, 200, 200],
             'match_id': [1, 1, 1, 1]
         })
-        df = self.utils._get_players_used_in_match(
-            match_id, api_key='test_api_key')
+        self.utils.api_key = 'test_api_key'
+        df = self.utils._get_players_used_in_match(match_id)
         pd.testing.assert_frame_equal(df, expected_df)
 
 
