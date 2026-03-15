@@ -338,20 +338,20 @@ class TestUtils(unittest.TestCase):
         result4 = self.utils._clean_team_name(team4)
         self.assertEqual(result4, expected_result4)
 
-    def test_batting_average_vectorised(self):
-        """
-        _calculate_batting_average was replaced with a vectorised pandas expression.
-        Verify the equivalent behaviour:
-          - non-zero innings  → runs / innings_to_count
-          - zero innings      → NaN (not None, because pd.NA propagates through division)
-        """
-        data = pd.DataFrame({
-            'runs': [100, 50],
-            'innings_to_count': [10, 0],
-        })
+    def test_calculate_batting_average_with_non_zero_innings(self):
+        # _calculate_batting_average was replaced with a vectorised pandas
+        # expression in _aggregate_batting_stats.  Test the equivalent logic
+        # directly: non-zero innings should produce runs / innings_to_count.
+        data = pd.DataFrame({'runs': [100], 'innings_to_count': [10]})
         data['average'] = data['runs'] / data['innings_to_count'].replace(0, pd.NA)
-        self.assertAlmostEqual(data.loc[0, 'average'], 10.0)
-        self.assertTrue(pd.isna(data.loc[1, 'average']))
+        self.assertAlmostEqual(data['average'].iloc[0].item(), 10.0)
+
+    def test_calculate_batting_average_with_zero_innings(self):
+        # Zero innings_to_count should produce NaN (not None) so that
+        # downstream pandas operations handle it cleanly.
+        data = pd.DataFrame({'runs': [100], 'innings_to_count': [0]})
+        data['average'] = data['runs'] / data['innings_to_count'].replace(0, pd.NA)
+        self.assertTrue(pd.isna(data.loc[0, 'average']))
 
     @patch.object(u, '_make_api_request')
     def test_get_players_used_in_match(self, mock_make_api_request):
