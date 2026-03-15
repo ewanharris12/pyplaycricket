@@ -6,57 +6,109 @@ from playcric.utils import u
 
 
 class pc(u):
-    def __init__(self, api_key, site_id, team_names: list = [], team_name_to_ids_lookup: dict = {}):
+    """
+    Primary public API class for the Play-Cricket wrapper.
+
+    Provides methods to retrieve match results, league tables, player stats,
+    and innings data from the Play-Cricket API (play-cricket.com/api/v2).
+
+    Inherits private helpers from ``u`` (utils).  Club-specific display logic
+    lives in the ``acc`` subclass.
+
+    Args:
+        api_key (str): Play-Cricket API token.
+        site_id (int): Default site ID used when none is passed to a method.
+        team_names (list): Human-readable team names for this club.
+        team_name_to_ids_lookup (dict): Mapping of team name → Play-Cricket team ID.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        site_id: int,
+        team_names: list | None = None,
+        team_name_to_ids_lookup: dict | None = None,
+    ):
+        super().__init__()
         self.api_key = api_key
         self.logger = logging.getLogger('pyplaycricket.playcricket')
         self.logger.info(f'Setting site_id as {site_id}')
         self.site_id = site_id
-        self.team_names = team_names
-        self.team_name_to_ids_lookup = team_name_to_ids_lookup
+        self.team_names = team_names if team_names is not None else []
+        self.team_name_to_ids_lookup = (
+            team_name_to_ids_lookup if team_name_to_ids_lookup is not None else {}
+        )
         self.team_ids = list(self.team_name_to_ids_lookup.values())
         self.team_ids_to_names_lookup = {
-            v: k for k, v in self.team_name_to_ids_lookup.items()}
+            v: k for k, v in self.team_name_to_ids_lookup.items()
+        }
+
+    # ------------------------------------------------------------------
+    # Players
+    # ------------------------------------------------------------------
 
     def list_registered_players(self, site_id: int = None):
         """
-        Retrieves a list of registered players from the specified site.
+        Retrieve all registered players for a site.
 
         Args:
-            site_id (int, optional): The ID of the site to retrieve players from. If not provided, the default site ID will be used.
+            site_id (int, optional): Site to query.  Falls back to
+                ``self.site_id`` when not provided.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the registered players' information.
+            pd.DataFrame: One row per registered player.
         """
         site_id = self._set_site_id(site_id)
-        data = self._make_api_request(config.PLAYERS_URL.format(
-            site_id=site_id, api_key=self.api_key))
+        data = self._make_api_request(
+            config.PLAYERS_URL.format(site_id=site_id, api_key=self.api_key))
+        return pd.json_normalize(data['players'])
 
-        df = pd.json_normalize(data['players'])
-        return df
+    # ------------------------------------------------------------------
+    # Matches
+    # ------------------------------------------------------------------
 
-    def get_all_matches(self, season: int, team_ids: list = [], competition_ids: list = [], competition_types: list = [], site_id: int = None):
+    def get_all_matches(
+        self,
+        season: int,
+        team_ids: list | None = None,
+        competition_ids: list | None = None,
+        competition_types: list | None = None,
+        site_id: int | None = None,
+    ):
         """
-        Retrieves all matches based on the specified filters.
+        Retrieve all matches for a season, with optional filters.
 
         Args:
-            season (int): The season for which matches should be retrieved.
-            team_ids (list, optional): A list of team IDs to filter the matches. Defaults to an empty list.
-            competition_ids (list, optional): A list of competition IDs to filter the matches. Defaults to an empty list.
-            competition_types (list, optional): A list of competition types to filter the matches. Defaults to an empty list.
-            site_id (int, optional): The site ID to retrieve matches from. Defaults to None.
+            season (int): Season year to fetch.
+            team_ids (list, optional): Only return matches involving these teams.
+            competition_ids (list, optional): Only return matches in these competitions.
+            competition_types (list, optional): Only return matches of these types.
+            site_id (int, optional): Site to query.  Falls back to ``self.site_id``.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the retrieved matches data.
+            pd.DataFrame: One row per match.
         """
-        print(f'Getting all matches for season {season} with team_ids: {team_ids}, competition_ids: {competition_ids}, competition_types: {competition_types}')
+        if team_ids is None:
+            team_ids = []
+        if competition_ids is None:
+            competition_ids = []
+        if competition_types is None:
+            competition_types = []
+
+        self.logger.info(
+            f'Getting all matches for season {season} with team_ids: {team_ids}, '
+            f'competition_ids: {competition_ids}, competition_types: {competition_types}'
+        )
         site_id = self._set_site_id(site_id)
         team_ids = self._convert_team_ids_to_ints(team_ids)
-        data = self._make_api_request(config.MATCHES_URL.format(
-            site_id=site_id, season=season, api_key=self.api_key))
+        data = self._make_api_request(
+            config.MATCHES_URL.format(
+                site_id=site_id, season=season, api_key=self.api_key))
 
         df = pd.json_normalize(data['matches'])
         if df.empty:
             return pd.DataFrame()
+
         for col in ['last_updated', 'match_date']:
             if col in df.columns:
                 df[col] = pd.to_datetime(df[col], format='%d/%m/%Y')
@@ -65,97 +117,114 @@ class pc(u):
         for col in ['home_team_id', 'away_team_id']:
             if col in df.columns:
                 df[col] = df[col].astype('int')
+
         if team_ids:
             self.logger.info(f'Filtering to team_ids: {team_ids}')
-            df = df.loc[(df['home_team_id'].isin(team_ids)) |
-                        (df['away_team_id'].isin(team_ids))]
+            df = df.loc[
+                (df['home_team_id'].isin(team_ids)) |
+                (df['away_team_id'].isin(team_ids))
+            ]
         if competition_ids:
-            self.logger.info(
-                f'Filtering to competition_ids: {competition_ids}')
-            df = df.loc[(df['competition_id'].isin(competition_ids))]
+            self.logger.info(f'Filtering to competition_ids: {competition_ids}')
+            df = df.loc[df['competition_id'].isin(competition_ids)]
         if competition_types:
-            self.logger.info(
-                f'Filtering to competition_types: {competition_types}')
-            df = df.loc[(df['competition_type'].isin(competition_types))]
+            self.logger.info(f'Filtering to competition_types: {competition_types}')
+            df = df.loc[df['competition_type'].isin(competition_types)]
+
         return df
 
-    def get_league_table(self, competition_id: int, simple: bool = False, clean_names: bool = True):
+    # ------------------------------------------------------------------
+    # League table
+    # ------------------------------------------------------------------
+
+    def get_league_table(self, competition_id: int, simple: bool = False, clean_names: bool = True) -> tuple:
         """
-        Retrieves the league table for a given competition ID.
+        Retrieve the league table for a division.
 
         Args:
-            competition_id (int): The ID of the competition.
-            simple (bool, optional): Flag to indicate whether to return a simplified version of the league table.
-                                    Defaults to False.
+            competition_id (int): Play-Cricket division/competition ID.
+            simple (bool, optional): Collapse win-type variants into W/D/L.
+                Defaults to False.
+            clean_names (bool, optional): Strip club suffixes from team names.
+                Defaults to True.
 
         Returns:
-            tuple: A tuple containing the league table dataframe and the key used for column names.
-
+            tuple[pd.DataFrame, list]: The league table and the key list that
+                describes the column headings.
         """
-        data = self._make_api_request(config.LEAGUE_TABLE_URL.format(
-            competition_id=competition_id, api_key=self.api_key))
+        data = self._make_api_request(
+            config.LEAGUE_TABLE_URL.format(
+                competition_id=competition_id, api_key=self.api_key))
 
         df = pd.json_normalize(data['league_table'][0]['values'])
         df.rename(columns=data['league_table'][0]['headings'], inplace=True)
-        # df = df[list(set(df.columns.tolist()))]
-        key = [i.replace('&nbsp;', '')
-               for i in data['league_table'][0]['key'].split(',')]
+        key = [
+            i.replace('&nbsp;', '')
+            for i in data['league_table'][0]['key'].split(',')
+        ]
         df = self._clean_league_table(df=df, simple=simple)
         if clean_names:
-            df['TEAM'] = df['TEAM'].apply(
-                lambda x: self._clean_team_name(team=x))
+            df['TEAM'] = df['TEAM'].apply(lambda x: self._clean_team_name(team=x))
 
         return df, key
 
+    # ------------------------------------------------------------------
+    # Match results
+    # ------------------------------------------------------------------
+
     def get_match_result_string(self, match_id: int):
         """
-        Retrieves the match result description for a given match ID.
+        Return the raw result description text from the API for a match.
 
-        Parameters:
-        - match_id (int): The ID of the match.
+        Args:
+            match_id (int): Play-Cricket match ID.
 
         Returns:
-        - result_text (str): The description of the match result.
+            str: Human-readable result description.
         """
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
+        return data['match_details'][0]['result_description']
 
-        result_text = data[0]['result_description']
-        return result_text
-
-    def get_result_for_my_team(self, match_id: int, team_ids: list = None):
+    def get_result_for_my_team(self, match_id: int, team_ids: list | None = None):
         """
-        Retrieves the result letter for a given match and team(s).
+        Return the result code (W/L/D/etc.) from the perspective of the given teams.
 
         Args:
-            match_id (int): The ID of the match.
-            team_ids (list, optional): A list of team IDs to whom the match result should apply. Defaults to None.
+            match_id (int): Play-Cricket match ID.
+            team_ids (list, optional): Team IDs to treat as "our" teams.
 
         Returns:
-            str: The result letter indicating the outcome of the match for the specified team(s).
+            str: Result code, e.g. ``'W'``, ``'L'``, ``'D'``.
         """
         team_ids = self._convert_team_ids_to_ints(team_ids)
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         data = data['match_details'][0]
-        result_letter = self._get_result_letter(data=data, team_ids=team_ids)
-        return result_letter
+        return self._get_result_letter(data=data, team_ids=team_ids)
 
-    def get_all_players_involved(self, match_ids: list, team_ids: list = []):
+    # ------------------------------------------------------------------
+    # Players involved
+    # ------------------------------------------------------------------
+
+    def get_all_players_involved(self, match_ids: list, team_ids: list | None = None):
         """
-        Retrieves all players involved in the specified matches and teams.
+        Retrieve deduplicated player records across a set of matches.
 
         Args:
-            match_ids (list): A list of match IDs.
-            team_ids (list, optional): A list of team IDs. If not provided, it uses the default team IDs.
+            match_ids (list): Match IDs to query.
+            team_ids (list, optional): If provided, restrict to players from
+                these teams.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the details of all players involved.
+            pd.DataFrame: One row per unique player–match combination.
         """
+        if team_ids is None:
+            team_ids = []
+
         players = []
         for match_id in match_ids:
-            players.append(self._get_players_used_in_match(
-                match_id=match_id, api_key=self.api_key))
+            players.append(self._get_players_used_in_match(match_id=match_id))
         players = pd.concat(players)
 
         if team_ids:
@@ -163,25 +232,52 @@ class pc(u):
 
         players = players.drop_duplicates(
             subset=['player_name', 'player_id', 'match_id'])
-        # players['player_id'] = players['player_id'].astype('int')
         players.reset_index(inplace=True, drop=True)
         return players
 
-    def get_innings_total_scores(self, match_id: int):
+    # ------------------------------------------------------------------
+    # Match detail helpers
+    # ------------------------------------------------------------------
+
+    def _extract_match_team_context(self, data: dict) -> dict:
         """
-        Retrieves the total scores for each innings of a given match.
+        Extract a team-ID-to-name lookup and ordered ID list from match detail data.
+
+        This avoids duplicating the same four lines in every method that reads
+        match detail responses.
 
         Args:
-            match_id (int): The ID of the match.
+            data (dict): The ``match_details[0]`` dict from the API response.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the total scores for each innings.
+            dict: ``{'all_ids': [home_id, away_id],
+                     'team_name_lookup': {id: name, ...}}``
+        """
+        home_id = self._normalise_id(data['home_team_id'])
+        away_id = self._normalise_id(data['away_team_id'])
+        all_ids = [home_id, away_id]
+        team_name_lookup = {
+            home_id: data['home_club_name'] + ' - ' + data['home_team_name'],
+            away_id: data['away_club_name'] + ' - ' + data['away_team_name'],
+        }
+        return {'all_ids': all_ids, 'team_name_lookup': team_name_lookup}
+
+    def get_innings_total_scores(self, match_id: int):
+        """
+        Retrieve innings-level totals (runs, wickets, etc.) for a match.
+
+        Args:
+            match_id (int): Play-Cricket match ID.
+
+        Returns:
+            pd.DataFrame: One row per innings with summary scores.
         """
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         inn = pd.json_normalize(data['match_details'][0]['innings'])
         inn = inn.drop(
-            columns=['bat', 'fow', 'bowl', 'innings_number'], errors='ignore').reset_index()
+            columns=['bat', 'fow', 'bowl', 'innings_number'], errors='ignore',
+        ).reset_index()
         inn['match_id'] = match_id
         inn['index'] += 1
         inn.rename(columns={'index': 'innings_number'}, inplace=True)
@@ -190,98 +286,127 @@ class pc(u):
 
     def get_match_partnerships(self, match_id: int):
         """
-        Retrieves the partnerships data for a given match.
+        Retrieve fall-of-wicket partnership data for each innings of a match.
 
-        Parameters:
-        - match_id (int): The ID of the match.
+        The ``score_added`` column is computed per innings (not across the
+        whole match), so the first wicket of each innings always shows the
+        runs scored from the start of that innings.
+
+        Args:
+            match_id (int): Play-Cricket match ID.
 
         Returns:
-        - partnerships (DataFrame): The partnerships data for the match.
+            pd.DataFrame: One row per wicket with partnership details.
         """
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         data = data['match_details'][0]
-        all_ids = [int(data['home_team_id']), int(data['away_team_id'])]
-        team_name_lookup = {int(data['home_team_id']): data['home_club_name'] + ' - ' + data['home_team_name'],
-                            int(data['away_team_id']): data['away_club_name'] + ' - ' + data['away_team_name']}
+        ctx = self._extract_match_team_context(data)
+        all_ids = ctx['all_ids']
+        team_name_lookup = ctx['team_name_lookup']
 
-        innings_n = 1
+        innings_number = 1
         partnerships = []
         for innings in data['innings']:
             p = pd.json_normalize(innings['fow'])
+            batting_id = self._normalise_id(innings['team_batting_id'])
             batting_name = innings['team_batting_name']
-            batting_id = int(innings['team_batting_id'])
-            if batting_id == all_ids[0]:
-                bowling_id = all_ids[1]
-            else:
-                bowling_id = all_ids[0]
+            bowling_id = all_ids[1] if batting_id == all_ids[0] else all_ids[0]
             bowling_name = team_name_lookup.get(bowling_id)
 
             p = self._add_team_name_id_and_innings(
-                p, batting_name, batting_id, bowling_name, bowling_id, innings_n, match_id)
+                p, batting_name, batting_id, bowling_name, bowling_id,
+                innings_number, match_id,
+            )
             partnerships.append(p)
-            innings_n += 1
+            innings_number += 1
 
         partnerships = pd.concat(partnerships)
         if not partnerships.empty:
             partnerships['runs'] = np.where(
                 partnerships['runs'] == '', None, partnerships['runs'])
-            partnerships['score_added'] = partnerships['runs'].fillna(0).astype(
-                'int') - partnerships['runs'].fillna(0).astype('int').shift(1)
+            runs_int = partnerships['runs'].fillna(0).astype('int')
+            # Shift within each innings so the first wicket of each innings
+            # is not compared against the last wicket of the previous innings.
+            shifted = (
+                runs_int.groupby(partnerships['innings']).shift(1).fillna(0).astype('int')
+            )
+            partnerships['score_added'] = runs_int - shifted
         else:
             partnerships['score_added'] = None
+
         return partnerships
 
-    def get_individual_stats(self, match_id: int, team_ids: list = [], stat_string: bool = False):
+    # ------------------------------------------------------------------
+    # Individual stats
+    # ------------------------------------------------------------------
+
+    def get_individual_stats(self, match_id: int, team_ids: list | None = None, stat_string: bool = False):
+        """
+        Retrieve batting and bowling statistics for a single match.
+
+        Args:
+            match_id (int): Play-Cricket match ID.
+            team_ids (list, optional): If provided, restrict results to these teams.
+            stat_string (bool, optional): If True, add a formatted ``stat``
+                column to each DataFrame.  Defaults to False.
+
+        Returns:
+            tuple[pd.DataFrame, pd.DataFrame]: ``(batting, bowling)`` DataFrames.
+                Empty DataFrames with the standard schema are returned when no
+                innings data is available.
+        """
+        if team_ids is None:
+            team_ids = []
+
         data = self._make_api_request(
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         data = data['match_details'][0]
-        all_ids = [int(data['home_team_id']), int(data['away_team_id'])]
-        team_name_lookup = {int(data['home_team_id']): data['home_club_name'] + ' - ' + data['home_team_name'],
-                            int(data['away_team_id']): data['away_club_name'] + ' - ' + data['away_team_name']}
+        ctx = self._extract_match_team_context(data)
+        all_ids = ctx['all_ids']
+        team_name_lookup = ctx['team_name_lookup']
 
         all_batting = []
         all_bowling = []
 
-        innings_n = 1
+        innings_number = 1
         for innings in data['innings']:
             bat = pd.json_normalize(innings['bat'])
-            if (bat.empty):
+            if bat.empty:
                 continue
+            batting_id = self._normalise_id(innings['team_batting_id'])
             batting_name = innings['team_batting_name']
-            batting_id = int(innings['team_batting_id'])
-
-            if batting_id == all_ids[0]:
-                bowling_id = all_ids[1]
-            else:
-                bowling_id = all_ids[0]
+            bowling_id = all_ids[1] if batting_id == all_ids[0] else all_ids[0]
             bowling_name = team_name_lookup.get(bowling_id)
 
             bowl = pd.json_normalize(innings['bowl'])
             if bowl.empty:
                 continue
+
             bowl = self._add_team_name_id_and_innings(
-                bowl, bowling_name, bowling_id, batting_name, batting_id, innings_n, match_id)
-
+                bowl, bowling_name, bowling_id, batting_name, batting_id,
+                innings_number, match_id,
+            )
             bat = self._add_team_name_id_and_innings(
-                bat, batting_name, batting_id, bowling_name, bowling_id, innings_n, match_id)
-
+                bat, batting_name, batting_id, bowling_name, bowling_id,
+                innings_number, match_id,
+            )
             all_batting.append(bat)
             all_bowling.append(bowl)
-
-            innings_n += 1
+            innings_number += 1
 
         if len(all_batting) == 0:
-            return pd.DataFrame(columns=config.STANDARD_BATTING_COLS), pd.DataFrame(config.STANDARD_BOWLING_COLS)
+            return (
+                pd.DataFrame(columns=config.STANDARD_BATTING_COLS),
+                pd.DataFrame(columns=config.STANDARD_BOWLING_COLS),
+            )
 
         all_batting = self._standardise_bat(pd.concat(all_batting))
         all_bowling = self._standardise_bowl(pd.concat(all_bowling))
 
         if team_ids:
-            all_batting = all_batting.loc[all_batting['team_id'].isin(
-                team_ids)]
-            all_bowling = all_bowling.loc[all_bowling['team_id'].isin(
-                team_ids)]
+            all_batting = all_batting.loc[all_batting['team_id'].isin(team_ids)]
+            all_bowling = all_bowling.loc[all_bowling['team_id'].isin(team_ids)]
 
         if stat_string:
             all_batting['stat'] = all_batting.apply(
@@ -289,57 +414,127 @@ class pc(u):
             all_bowling['stat'] = all_bowling.apply(
                 lambda row: self._write_bowling_string(row), axis=1)
 
-        # all_bowling
-
         return all_batting, all_bowling
 
-    def get_stat_totals(self,  match_ids: list, team_ids: list = [], group_by_team: bool = False, for_graphics: bool = False, n_players: int = 10):
+    def get_individual_stats_from_all_games(
+        self, match_ids: list, team_ids: list | None = None, stat_string: bool = False,
+    ):
         """
-        Retrieves the batting, bowling, and fielding statistics for a given set of match and team IDs.
+        Collect individual batting, bowling, and fielding stats across multiple matches.
+
+        Fielding data is derived from the batting DataFrames of the opposition
+        (the ``fielder_name`` and ``fielder_id`` columns record the fielder
+        who took the dismissal).
 
         Args:
-            match_ids (list): A list of match IDs.
-            team_ids (list, optional): A list of team IDs.
-            for_graphics (bool, optional): A flag indicating whether the statistics are for graphics.
-            n_players (int, optional): The number of players to include in the statistics.
+            match_ids (list): Match IDs to include.
+            team_ids (list, optional): If provided, batting/bowling are filtered
+                to these teams and fielding to their opposition.
+            stat_string (bool, optional): Passed through to ``get_individual_stats``.
 
         Returns:
-            tuple: A tuple containing the batting, bowling, and fielding statistics.
+            tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+                ``(batting, bowling, fielding)``
 
+        Raises:
+            ValueError: If fetching stats for any match ID fails.
         """
+        if team_ids is None:
+            team_ids = []
+
+        batting_frames: list[pd.DataFrame] = []
+        bowling_frames: list[pd.DataFrame] = []
+        for match_id in match_ids:
+            try:
+                bat, bowl = self.get_individual_stats(
+                    match_id=match_id, stat_string=stat_string)
+            except Exception as e:
+                raise ValueError(f'MATCH ID {match_id} FAILED WITH: {e}')
+            batting_frames.append(bat)
+            bowling_frames.append(bowl)
+
+        batting = pd.concat(batting_frames)
+        bowling = pd.concat(bowling_frames)
+        bowling['wickets'] = bowling['wickets'].fillna(0).astype('int')
+
+        # Fielding is drawn from the opposition's batting records (which carry
+        # fielder_name/fielder_id for each dismissal).
+        if team_ids:
+            fielding = batting.loc[~batting['team_id'].isin(team_ids)].copy()
+            batting = batting.loc[batting['team_id'].isin(team_ids)]
+            bowling = bowling.loc[bowling['team_id'].isin(team_ids)]
+        else:
+            fielding = batting.copy()
+
+        batting.sort_values(['runs', 'balls'], ascending=[False, True], inplace=True)
+        bowling.sort_values(
+            ['wickets', 'runs', 'balls'], ascending=[False, True, True], inplace=True)
+
+        batting.reset_index(inplace=True, drop=True)
+        fielding.reset_index(inplace=True, drop=True)
+        bowling.reset_index(inplace=True, drop=True)
+
+        return batting, bowling, fielding
+
+    # ------------------------------------------------------------------
+    # Season aggregates
+    # ------------------------------------------------------------------
+
+    def get_stat_totals(
+        self,
+        match_ids: list,
+        team_ids: list = None,
+        group_by_team: bool = False,
+        for_graphics: bool = False,
+        n_players: int = 10,
+    ):
+        """
+        Return aggregated batting, bowling, and fielding totals for a set of matches.
+
+        Args:
+            match_ids (list): Match IDs to include.
+            team_ids (list, optional): Teams to include.
+            group_by_team (bool, optional): Break stats down by team as well as player.
+            for_graphics (bool, optional): If True, truncate to ``n_players`` and
+                serialise each DataFrame to a newline-delimited string.
+            n_players (int, optional): Player count limit when ``for_graphics=True``.
+
+        Returns:
+            tuple[pd.DataFrame | str, ...]: ``(batting, bowling, fielding)``
+        """
+        if team_ids is None:
+            team_ids = []
+
         batting, bowling, fielding = self.get_individual_stats_from_all_games(
             match_ids, team_ids, stat_string=False)
 
-        batting, bowling, fielding = self.aggregate_stats(group_by_team, batting, bowling, fielding)
+        batting, bowling, fielding = self.aggregate_stats(
+            group_by_team, batting, bowling, fielding)
 
         if for_graphics:
-            batting = batting[config.STATS_TOTALS_BATTING_COLUMNS].head(
-                n_players)
-            bowling = bowling[config.STATS_TOTALS_BOWLING_COLUMNS].head(
-                n_players)
-            fielding = fielding[config.STATS_TOTALS_FIELDING_COLUMNS].head(
-                n_players)
+            batting = batting[config.STATS_TOTALS_BATTING_COLUMNS].head(n_players)
+            bowling = bowling[config.STATS_TOTALS_BOWLING_COLUMNS].head(n_players)
+            fielding = fielding[config.STATS_TOTALS_FIELDING_COLUMNS].head(n_players)
 
             batting = self._extract_string_for_graphic(batting)
             bowling = self._extract_string_for_graphic(bowling)
             fielding = self._extract_string_for_graphic(fielding)
+
         return batting, bowling, fielding
 
     def aggregate_stats(self, group_by_team, batting, bowling, fielding):
         """
-        Aggregates batting, bowling, and fielding statistics based on specified grouping criteria.
+        Dispatch raw per-match DataFrames to the three aggregation helpers.
 
         Args:
-            group_by_team (bool): If True, aggregates stats by team in addition to player.
-            batting (pd.DataFrame): DataFrame containing batting statistics.
-            bowling (pd.DataFrame): DataFrame containing bowling statistics.
-            fielding (pd.DataFrame): DataFrame containing fielding statistics.
+            group_by_team (bool): Include team ID in the groupby keys.
+            batting (pd.DataFrame): Row-level batting data.
+            bowling (pd.DataFrame): Row-level bowling data.
+            fielding (pd.DataFrame): Row-level fielding data (derived from batting).
 
         Returns:
-            tuple: A tuple containing three DataFrames:
-                - Aggregated batting statistics.
-                - Aggregated bowling statistics.
-                - Aggregated fielding statistics.
+            tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+                Aggregated ``(batting, bowling, fielding)``.
         """
         batting_groupby = ['initial_name', 'batsman_name', 'batsman_id']
         bowling_groupby = ['initial_name', 'bowler_name', 'bowler_id']
@@ -350,79 +545,53 @@ class pc(u):
             fielding_groupby += ['team_id']
 
         batting = self._aggregate_batting_stats(batting, batting_groupby)
-
         bowling = self._aggregate_bowling_stats(bowling, bowling_groupby)
-
         fielding = self._aggregate_fielding_stats(fielding, fielding_groupby)
-        return batting,bowling,fielding
+        return batting, bowling, fielding
 
-    def get_individual_stats_from_all_games(self,  match_ids: list, team_ids: list = [], stat_string: bool = False):
+    # ------------------------------------------------------------------
+    # Display / ordering
+    # ------------------------------------------------------------------
+
+    def _extract_string_for_graphic(self, df: pd.DataFrame) -> str:
         """
-        Retrieves individual batting, bowling, and fielding statistics from all games.
+        Serialise every cell of a DataFrame to a newline-delimited string.
+
+        Cells are written row-by-row, column-by-column, each on its own line.
+        This format is consumed by the graphics pipeline.
 
         Args:
-            match_ids (list): List of match IDs.
-            team_ids (list): List of team IDs.
-            stat_string (str): String representing the desired statistics.
+            df (pd.DataFrame): DataFrame to serialise.
 
         Returns:
-            tuple: A tuple containing three pandas DataFrames - batting, bowling, and fielding.
-                - batting: DataFrame containing individual batting statistics.
-                - bowling: DataFrame containing individual bowling statistics.
-                - fielding: DataFrame containing individual fielding statistics.
-
-        Raises:
-            ValueError: If any of the match IDs fail to retrieve statistics.
-
+            str: Newline-delimited string of all cell values.
         """
-        batting = []
-        bowling = []
-        for match_id in match_ids:
-            try:
-                bat, bowl = self.get_individual_stats(
-                    match_id=match_id, stat_string=stat_string)
-            except Exception as e:
-                raise ValueError(f'MATCH ID {match_id} FAILED WITH: {e}')
-            batting.append(bat)
-            bowling.append(bowl)
-
-        batting = pd.concat(batting)
-        bowling = pd.concat(bowling)
-        bowling['wickets'] = bowling['wickets'].fillna(0).astype('int')
-        fielding = batting
-
-        if team_ids:
-            fielding = batting.loc[~batting['team_id'].isin(team_ids)]
-            batting = batting.loc[batting['team_id'].isin(team_ids)]
-            bowling = bowling.loc[bowling['team_id'].isin(team_ids)]
-
-        batting.sort_values(['runs', 'balls'], ascending=[
-                            False, True], inplace=True)
-        bowling.sort_values(['wickets', 'runs', 'balls'], ascending=[
-                            False, True, True], inplace=True)
-
-        batting.reset_index(inplace=True, drop=True)
-        fielding.reset_index(inplace=True, drop=True)
-        bowling.reset_index(inplace=True, drop=True)
-
-        return batting, bowling, fielding
+        return '\n'.join(str(v) for v in df.values.flatten()) + '\n'
 
     def order_matches_for_the_graphics(self, matches: pd.DataFrame):
         """
-        Orders the matches for the graphics.
+        Add a ``club_team_name`` column and sort matches for display.
 
         Args:
-            matches (pd.DataFrame): The DataFrame containing the matches data.
+            matches (pd.DataFrame): Matches DataFrame (must include
+                ``home_team_id``, ``away_team_id``, and ``match_date``).
 
         Returns:
-            pd.DataFrame: The DataFrame with matches ordered by match date and club team name.
+            pd.DataFrame: Sorted matches with ``club_team_name`` column.
+
+        Raises:
+            ValueError: If ``self.team_ids`` has not been set.
         """
         if self.team_ids is None:
             raise ValueError(
                 'Please set the team_ids attribute before calling this method.')
-        matches['club_team_name'] = np.where(matches['home_team_id'].isin(self.team_ids), matches['home_team_id'].apply(
-            lambda x: self.team_ids_to_names_lookup.get(int(x))), matches['away_team_id'].apply(lambda x: self.team_ids_to_names_lookup.get(int(x))))
-        matches.sort_values(['match_date', 'club_team_name'],
-                            ascending=True, inplace=True)
-
+        matches['club_team_name'] = np.where(
+            matches['home_team_id'].isin(self.team_ids),
+            matches['home_team_id'].apply(
+                lambda x: self.team_ids_to_names_lookup.get(int(x))),
+            matches['away_team_id'].apply(
+                lambda x: self.team_ids_to_names_lookup.get(int(x))),
+        )
+        matches.sort_values(
+            ['match_date', 'club_team_name'], ascending=True, inplace=True)
         return matches

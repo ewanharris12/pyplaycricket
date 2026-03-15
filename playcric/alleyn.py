@@ -1,5 +1,5 @@
 from playcric.playcricket import pc
-from playcric import config
+from playcric import config, alleyn_config
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -7,332 +7,375 @@ import logging
 
 
 class acc(pc):
-    def __init__(self, api_key, site_id, team_names: list = config.TEAM_NAMES, team_name_to_ids_lookup: dict = config.TEAM_NAME_TO_IDS_LOOKUP):
+    """
+    Alleyn Cricket Club-specific subclass of the Play-Cricket wrapper.
+
+    Extends ``pc`` with display and formatting methods tailored to Alleyn CC's
+    graphics pipeline.  Club-specific constants (team IDs, banned words, etc.)
+    are loaded from ``alleyn_config``.
+    """
+
+    def __init__(
+        self,
+        api_key: str,
+        site_id: int,
+        team_names: list | None = None,
+        team_name_to_ids_lookup: dict | None = None,
+    ):
         """
-        Initialize the Alleyn class.
+        Initialise the Alleyn CC client.
 
         Args:
-            api_key (str): The API key for accessing the Play-Cricket API.
-            site_id (str): The ID of the Play-Cricket site.
-            team_names (list, optional): A list of team names. Defaults to an empty list.
-            team_name_to_ids_lookup (dict, optional): A dict of team name to team ID mappings. Defaults to an empty dict.
+            api_key (str): Play-Cricket API token.
+            site_id (str): Play-Cricket site ID.
+            team_names (list, optional): Club team name strings.
+                Defaults to ``alleyn_config.TEAM_NAMES``.
+            team_name_to_ids_lookup (dict, optional): Team name → ID mapping.
+                Defaults to ``alleyn_config.TEAM_NAME_TO_IDS_LOOKUP``.
         """
-        super().__init__(api_key=api_key, site_id=site_id, team_names=team_names,
-                         team_name_to_ids_lookup=team_name_to_ids_lookup)
+        if team_names is None:
+            team_names = alleyn_config.TEAM_NAMES
+        if team_name_to_ids_lookup is None:
+            team_name_to_ids_lookup = alleyn_config.TEAM_NAME_TO_IDS_LOOKUP
+
+        super().__init__(
+            api_key=api_key, site_id=site_id,
+            team_names=team_names,
+            team_name_to_ids_lookup=team_name_to_ids_lookup,
+        )
         self.logger = logging.getLogger('pyplaycricket.alleyn')
-        # self.api_key = api_key
-        # self.logger.info(f'Setting site_id as {site_id}')
-        # self.site_id = site_id
+        # Set club-specific name-cleaning constants used by _clean_team_name in u.
+        self.team_name_banned_words = alleyn_config.TEAM_NAME_BANNED_WORDS
+        self.n_team_swap = alleyn_config.N_TEAM_SWAP
 
-    def get_innings_scores(self, match_ids: list = []):
+    # ------------------------------------------------------------------
+    # Innings / scores
+    # ------------------------------------------------------------------
+
+    def get_innings_scores(self, match_ids: list | None = None):
         """
-        Retrieves the team names and innings scores for the given match IDs.
+        Return team names and innings score strings for a set of matches.
 
         Args:
-            match_ids (list): A list of match IDs.
+            match_ids (list, optional): Match IDs to include.
 
         Returns:
-            tuple: A tuple containing the team names and innings scores as strings.
+            tuple[str, str]: Newline-joined team names and score strings.
         """
+        if match_ids is None:
+            match_ids = []
+
         team_names = []
         innings_scores = []
 
         for match_id in match_ids:
             data = self._make_api_request(
-                config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
+                config.MATCH_DETAIL_URL.format(
+                    match_id=match_id, api_key=self.api_key))
             data = data['match_details'][0]
             if data['result']:
                 for innings in data['innings']:
-                    team = innings['team_batting_name']
-                    team = self._clean_team_name(team)
-
+                    team = self._clean_team_name(innings['team_batting_name'])
                     team_names.append(team.strip())
 
-                    total_runs = innings['runs']
-                    if innings['wickets'] == '10':
-                        wickets = ''
-                    else:
-                        wickets = '-' + innings['wickets']
-                    score_string = f'{total_runs}{wickets}'
-                    innings_scores.append(score_string)
+                    wickets = '' if innings['wickets'] == '10' else '-' + innings['wickets']
+                    innings_scores.append(f"{innings['runs']}{wickets}")
 
-        team_names = '\n'.join(team_names)
-        innings_scores = '\n'.join(innings_scores)
+        return '\n'.join(team_names), '\n'.join(innings_scores)
 
-        return team_names, innings_scores
+    # ------------------------------------------------------------------
+    # Individual performances graphic
+    # ------------------------------------------------------------------
 
-    def get_individual_performances_for_graphic(self, match_ids: list = [], players_to_include: int = 3):
+    def get_individual_performances_for_graphic(
+        self, match_ids: list | None = None, players_to_include: int = 3,
+    ):
         """
-        Retrieves individual performances for a given list of match IDs and returns a summary string.
+        Build a fixed-width newline-delimited string of top batting and bowling
+        performances per innings, suitable for the graphics pipeline.
 
         Args:
-            match_ids (list): A list of match IDs for which individual performances are to be retrieved.
-            players_to_include (int): Number of players per result to include
+            match_ids (list, optional): Match IDs to process.
+            players_to_include (int): Number of players to show per innings half.
 
         Returns:
-            str: A summary string containing the top batting and bowling performances for each match ID.
+            str: Formatted summary string.
         """
+        if match_ids is None:
+            match_ids = []
+
         stats_summary = ''
         for match_id in match_ids:
-            print(match_id)
+            self.logger.info(f'Processing match_id: {match_id}')
             bat, bowl = self.get_individual_stats(
                 match_id=match_id, stat_string=True)
+
             for innings in sorted(bat['innings'].unique().tolist()):
                 batn = bat.loc[bat['innings'] == innings]
                 batn = batn.loc[batn['how_out'] != 'did not bat']
-                batn.sort_values(['runs', 'balls', 'not_out', 'position'], ascending=[
-                                 False, True, False, True], inplace=True)
-                batn = batn.head(players_to_include)
+                batn = batn.sort_values(
+                    ['runs', 'balls', 'not_out', 'position'],
+                    ascending=[False, True, False, True],
+                ).head(players_to_include)
 
-                batting_names = [i.upper()
-                                 for i in batn['initial_name'].tolist()]
+                batting_names = [i.upper() for i in batn['initial_name'].tolist()]
                 batting_stats = batn['stat'].tolist()
-
                 batting_names, batting_stats = self._make_sure_number_of_players_is_consistent(
                     batting_names, batting_stats, players_to_include=players_to_include)
-
                 stats_summary = self._add_to_stats_string(
                     stats_summary, batting_names, batting_stats)
 
                 bowln = bowl.loc[bowl['innings'] == innings]
                 bowln = bowln.loc[bowln['wickets'] > 0]
-                bowln.sort_values(['wickets', 'runs', 'overs'], ascending=[
-                                  False, True, False], inplace=True)
+                bowln = bowln.sort_values(
+                    ['wickets', 'runs', 'overs'], ascending=[False, True, False],
+                ).head(players_to_include)
 
-                bowln = bowln.head(players_to_include)
-
-                bowling_names = [i.upper()
-                                 for i in bowln['initial_name'].tolist()]
+                bowling_names = [i.upper() for i in bowln['initial_name'].tolist()]
                 bowling_stats = bowln['stat'].tolist()
-
                 bowling_names, bowling_stats = self._make_sure_number_of_players_is_consistent(
                     bowling_names, bowling_stats, players_to_include=players_to_include)
-
                 stats_summary = self._add_to_stats_string(
                     stats_summary, bowling_names, bowling_stats)
 
         return stats_summary
 
-    def _add_to_stats_string(self, stats_summary: str, names_list: list, stats_list: list):
+    def _add_to_stats_string(self, stats_summary: str, names_list: list, stats_list: list) -> str:
         """
-        Adds the names and stats to the given stats_summary string.
+        Append a block of names then stats to the running summary string.
 
         Args:
-            stats_summary (str): The current stats summary string.
-            names_list (list): A list of names to be added to the stats summary.
-            stats_list (list): A list of stats to be added to the stats summary.
+            stats_summary (str): Accumulated summary string so far.
+            names_list (list): Player name strings to append.
+            stats_list (list): Corresponding stat strings to append.
 
         Returns:
-            str: The updated stats summary string.
+            str: Updated summary string.
         """
-        stats_summary += '\n'.join(names_list)
-        stats_summary += '\n'
-        stats_summary += '\n'.join(stats_list)
-        stats_summary += '\n'
+        stats_summary += '\n'.join(names_list) + '\n'
+        stats_summary += '\n'.join(stats_list) + '\n'
         return stats_summary
 
-    def _make_sure_number_of_players_is_consistent(self, names_list: list, stats_list: list, players_to_include: int):
+    def _make_sure_number_of_players_is_consistent(
+        self, names_list: list, stats_list: list, players_to_include: int,
+    ) -> tuple:
         """
-        Ensures that the number of players is consistent by adding empty values to the lists if necessary.
+        Pad name and stat lists with blank entries to reach ``players_to_include``.
+
+        Ensures downstream string formatting always receives fixed-length lists.
 
         Args:
-            names_list (list): A list of player names.
-            stats_list (list): A list of player stats.
+            names_list (list): Player names.
+            stats_list (list): Player stats.
+            players_to_include (int): Target list length.
 
         Returns:
-            tuple: A tuple containing the updated names_list and stats_list.
+            tuple[list, list]: Padded ``(names_list, stats_list)``.
         """
-        for i in range(0, players_to_include):
-            if len(names_list) < players_to_include:
-                names_list.append(' ')
-                stats_list.append(' ')
+        while len(names_list) < players_to_include:
+            names_list.append(' ')
+            stats_list.append(' ')
         return names_list, stats_list
 
-    def get_result_description_and_margin(self, match_ids: list, team_ids: list):
+    # ------------------------------------------------------------------
+    # Result strings
+    # ------------------------------------------------------------------
+
+    def get_result_description_and_margin(self, match_ids: list, team_ids: list) -> str:
         """
-        Retrieves the result description and margin for a list of match IDs and team IDs.
+        Build human-readable result lines for a set of matches.
+
+        Example output: ``"1s Won by 47 runs\n"``.
 
         Args:
-            match_ids (list): A list of match IDs.
-            team_ids (list): A list of team IDs.
+            match_ids (list): Match IDs to process.
+            team_ids (list): IDs of the club's teams (used to determine perspective).
 
         Returns:
-            str: A string containing the result description and margin for each match.
-
+            str: Newline-terminated result strings concatenated together.
         """
         all_result_strings = ''
         for match_id in match_ids:
-            # print(match_id)
             self.logger.info(f'Match ID: {match_id}')
             data = self._make_api_request(
-                config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
+                config.MATCH_DETAIL_URL.format(
+                    match_id=match_id, api_key=self.api_key))
             data = data['match_details'][0]
-            if int(data['home_team_id']) in team_ids:
-                team_name = data['home_team_name']
-            else:
-                team_name = data['away_team_name']
-            result_letter = self._get_result_letter(
-                data=data, team_ids=team_ids)
 
-            result_string = team_name + ' ' + \
-                config.RESULTS_TEXT.get(result_letter)
+            team_name = (
+                data['home_team_name']
+                if int(data['home_team_id']) in team_ids
+                else data['away_team_name']
+            )
+            result_letter = self._get_result_letter(data=data, team_ids=team_ids)
+            result_string = team_name + ' ' + config.RESULTS_TEXT.get(result_letter or '', '')
+
             if result_letter == 'D':
                 result_string = 'Match drawn'
             elif result_letter in config.NEUTRAL_RESULTS:
                 pass
             elif data['batted_first'] == data['result_applied_to']:
-                n_runs = int(data['innings'][0]['runs']) - \
-                    int(data['innings'][1]['runs'])
+                n_runs = int(data['innings'][0]['runs']) - int(data['innings'][1]['runs'])
                 result_string += f' {n_runs} runs'
-
             else:
                 n_wickets = 10 - int(data['innings'][1]['wickets'])
                 result_string += f' {n_wickets} wickets'
 
-            result_string += '\n'
-            # print(result_string)
-            all_result_strings += result_string
+            all_result_strings += result_string + '\n'
+
         return all_result_strings
 
-    def get_weekend_matches(self, matches: pd.DataFrame, saturday: datetime):
+    # ------------------------------------------------------------------
+    # Match filtering
+    # ------------------------------------------------------------------
+
+    def get_weekend_matches(self, matches: pd.DataFrame, saturday: datetime) -> pd.DataFrame:
         """
-        Retrieves the matches that are scheduled for a given weekend.
+        Filter a matches DataFrame to those played on a given Saturday or Sunday.
 
         Args:
-            matches (pd.DataFrame): The DataFrame containing all the matches.
-            saturday (datetime): The date of the Saturday of the weekend.
+            matches (pd.DataFrame): Full matches DataFrame.
+            saturday (datetime): The Saturday date of the weekend to filter to.
 
         Returns:
-            pd.DataFrame: The DataFrame containing the matches scheduled for the weekend.
+            pd.DataFrame: Weekend matches ordered for display.
         """
-        matches = matches.loc[matches['match_date'].isin(
-            [saturday, saturday+timedelta(days=1)])].copy()
+        matches = matches.loc[
+            matches['match_date'].isin([saturday, saturday + timedelta(days=1)])
+        ].copy()
+        return self.order_matches_for_the_graphics(matches=matches)
 
-        matches = self.order_matches_for_the_graphics(matches=matches)
+    # ------------------------------------------------------------------
+    # Season lists
+    # ------------------------------------------------------------------
 
-        return matches
-
-    def get_season_opposition_list(self, matches: pd.DataFrame):
+    def get_season_opposition_list(self, matches: pd.DataFrame) -> str:
         """
-        Returns a formatted string containing the list of opposition teams for the season.
+        Return a newline-joined list of opposition team names for the season.
 
         Args:
-            matches (pd.DataFrame): A DataFrame containing the match data.
+            matches (pd.DataFrame): Matches DataFrame with ``home_club_name``
+                and ``away_club_name`` columns.
 
         Returns:
-            str: A formatted string containing the list of opposition teams.
+            str: Newline-joined opposition names.
         """
-        teams_list = []
-        for index, row in matches.iterrows():
-            teams_list.append(row['home_club_name'])
-            teams_list.append(row['away_club_name'])
-        teams_list = [self._clean_team_name(i)
-                      for i in teams_list if i not in self.team_names]
-        teams_list = '\n'.join(teams_list)
-        return teams_list
+        # Extract all team names from both columns in one vectorised pass.
+        all_teams = matches[['home_club_name', 'away_club_name']].values.flatten().tolist()
+        opposition = [
+            self._clean_team_name(t) for t in all_teams if t not in self.team_names
+        ]
+        return '\n'.join(opposition)
 
-    def get_cutout_off_league_table(self, league_table: pd.DataFrame, n_teams: int = 3):
+    # ------------------------------------------------------------------
+    # League table display
+    # ------------------------------------------------------------------
+
+    def get_cutout_off_league_table(self, league_table: pd.DataFrame, n_teams: int = 3) -> str:
         """
-        Returns a string representation of a cutout from the league table, centered around a specific team.
+        Return a fixed-width string slice of the league table centred on the club.
 
         Args:
-            league_table (pd.DataFrame): The league table as a pandas DataFrame.
-            n_teams (int, optional): The number of teams to include in the cutout. Defaults to 3.
+            league_table (pd.DataFrame): Full league table (must have POSITION,
+                TEAM, W, D, L, PTS columns).
+            n_teams (int, optional): Number of rows to include.  Defaults to 3.
 
         Returns:
-            str: A string representation of the cutout from the league table.
+            str: Newline-delimited table slice.
 
         Raises:
-            AssertionError: If n_teams is not an odd number.
-            AssertionError: If there are not enough teams in the league table.
-            Exception: If none of the teams in self.team_names are found in the league table.
-
+            AssertionError: If the table has fewer rows than ``n_teams``.
+            Exception: If none of ``self.team_names`` appear in the table.
         """
-        # if n_teams % 2 != 1:
-        #     n_teams += 1
         assert len(league_table) >= n_teams, "Not enough teams in the league"
 
         team_index = 1000
         for team in self.team_names:
             try:
-                ti = [i.split('-')[0].strip()
-                      for i in league_table['TEAM'].tolist()].index(team)
-            except:
+                ti = [
+                    i.split('-')[0].strip() for i in league_table['TEAM'].tolist()
+                ].index(team)
+            except ValueError:
                 ti = 1000
-            team_index = min([team_index, ti])
+            team_index = min(team_index, ti)
 
         if team_index == 1000:
             raise Exception(
                 f"None of the teams ({','.join(self.team_names)}) in the league table")
-        buffer = int((n_teams-1)/2)
-        if (team_index == 0) or (n_teams == len(league_table)):
+
+        buffer = int((n_teams - 1) / 2)
+        if team_index == 0 or n_teams == len(league_table):
             league_table = league_table.iloc[0:n_teams]
         else:
-            league_table = league_table.iloc[max(
-                [team_index - buffer, 0]):min([team_index+buffer+1, len(league_table)+1])]
+            league_table = league_table.iloc[
+                max(team_index - buffer, 0):min(team_index + buffer + 1, len(league_table) + 1)
+            ]
 
+        league_table = league_table.copy()
         league_table['TEAM'] = league_table['TEAM'].apply(
             lambda x: self._clean_team_name(x))
 
-        league_table_string = []
-        for _, row in league_table.iterrows():
-            league_table_string += [row['POSITION'], row['TEAM'],
-                                    str(row['W']), str(row['D']), str(row['L']), str(row['PTS'])]
-        league_table_string = '\n'.join(league_table_string)
+        cols = ['POSITION', 'TEAM', 'W', 'D', 'L', 'PTS']
+        return '\n'.join(str(v) for v in league_table[cols].values.flatten())
 
-        return league_table_string
+    # ------------------------------------------------------------------
+    # Season stat totals
+    # ------------------------------------------------------------------
 
-    def get_alleyn_season_totals(self, match_ids: list, team_ids: list = [], group_by_team: bool = False, for_graphics: bool = False, n_players: int = 10):
+    def get_alleyn_season_totals(
+        self,
+        match_ids: list,
+        team_ids: list | None = None,
+        group_by_team: bool = False,
+        for_graphics: bool = False,
+        n_players: int = 10,
+    ):
         """
-        Calculate the season statistics totals for batting, bowling, and fielding.
+        Calculate season batting, bowling, and fielding totals for Alleyn CC teams.
+
+        A thin wrapper around ``pc.get_stat_totals`` that defaults ``team_ids``
+        to the club's registered team IDs.
 
         Args:
-            match_ids (list): List of match IDs to consider for calculating the statistics.
-            team_ids (list, optional): List of team IDs to filter the statistics. Defaults to Alleyn CC adult teams.
-            for_graphics (bool, optional): Flag indicating whether the statistics are for graphics. Defaults to False.
-            n_players (int, optional): Number of top players to include in the statistics. Defaults to 10.
+            match_ids (list): Match IDs to aggregate over.
+            team_ids (list, optional): Defaults to ``self.team_ids``.
+            group_by_team (bool, optional): Break stats down by team.
+            for_graphics (bool, optional): Serialise output for the graphics pipeline.
+            n_players (int, optional): Top-N player cutoff when ``for_graphics=True``.
 
         Returns:
-            tuple: A tuple containing the calculated statistics for batting, bowling, and fielding.
-
+            tuple: ``(batting, bowling, fielding)``
         """
         if not team_ids:
             team_ids = self.team_ids
+        return self.get_stat_totals(
+            match_ids=match_ids, team_ids=team_ids,
+            group_by_team=group_by_team, for_graphics=for_graphics,
+            n_players=n_players,
+        )
 
-        batting, bowling, fielding = self.get_stat_totals(
-            match_ids=match_ids, team_ids=team_ids, group_by_team=group_by_team, for_graphics=for_graphics, n_players=n_players)
-        return batting, bowling, fielding
+    # ------------------------------------------------------------------
+    # Individual performances
+    # ------------------------------------------------------------------
 
-    def _extract_string_for_graphic(self, df):
+    def get_best_individual_performances(
+        self,
+        match_ids: list,
+        team_ids: list | None = None,
+        n_players: int = 5,
+        for_graphics: bool = False,
+    ):
         """
-        Extracts a string representation of the DataFrame for graphic display.
+        Return the best individual batting and bowling performances.
 
         Args:
-            df (pandas.DataFrame): The DataFrame to extract the string representation from.
+            match_ids (list): Match IDs to search.
+            team_ids (list, optional): Defaults to ``self.team_ids``.
+            n_players (int, optional): Number of top performances to return.
+            for_graphics (bool, optional): Serialise output for the graphics pipeline.
 
         Returns:
-            str: The string representation of the DataFrame for graphic display.
-        """
-        string_for_graphic = ''
-        for index, row in df.iterrows():
-            for col in df.columns:
-                string_for_graphic += str(row[col]) + '\n'
-        return string_for_graphic
-
-    def get_best_individual_performances(self, match_ids: list, team_ids: list = [], n_players=5, for_graphics: bool = False):
-        """
-        Retrieves the best individual performances in terms of batting and bowling for the given match and team IDs.
-
-        Args:
-            match_ids (list): List of match IDs to consider.
-            team_ids (list, optional): List of team IDs to consider. If not provided, all team IDs will be considered.
-            n_players (int, optional): Number of top players to retrieve. Defaults to 5.
-            for_graphics (bool, optional): Flag indicating whether the results are intended for graphics. Defaults to False.
-
-        Returns:
-            tuple: A tuple containing two pandas DataFrames - `batting` and `bowling`. 
-                   The `batting` DataFrame contains the best individual batting performances, 
-                   while the `bowling` DataFrame contains the best individual bowling performances.
+            tuple[pd.DataFrame | str, pd.DataFrame | str]: ``(batting, bowling)``
         """
         if not team_ids:
             team_ids = self.team_ids
@@ -344,39 +387,45 @@ class acc(pc):
                 batting)[config.INDIVIDUAL_PERFORMANCES_BATTING_COLUMNS].head(n_players)
             bowling = self._get_individual_performance_title(
                 bowling)[config.INDIVIDUAL_PERFORMANCES_BOWLING_COLUMNS].head(n_players)
-
             batting = self._extract_string_for_graphic(batting)
             bowling = self._extract_string_for_graphic(bowling)
 
         return batting, bowling
 
-    def _get_individual_performance_title(self, df):
+    def _get_individual_performance_title(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Adds a 'title' column to the given DataFrame based on the 'initial_name' and 'opposition_name' columns.
+        Add a ``title`` column in the form ``"JM Doe vs Opposition"`` to a stats DataFrame.
 
         Args:
-            df (pandas.DataFrame): The DataFrame containing the 'initial_name' and 'opposition_name' columns.
+            df (pd.DataFrame): DataFrame with ``initial_name`` and
+                ``opposition_name`` columns.
 
         Returns:
-            pandas.DataFrame: The DataFrame with the 'title' column added.
+            pd.DataFrame: DataFrame with ``title`` column added.
         """
-        df['title'] = df['initial_name'] + ' vs ' + df['opposition_name'].apply(
-            lambda x: self._clean_team_name(x))
+        df['title'] = (
+            df['initial_name'] + ' vs ' +
+            df['opposition_name'].apply(lambda x: self._clean_team_name(x))
+        )
         return df
 
-    def get_all_team_players_involved(self, match_ids: list, team_ids: list = []):
+    # ------------------------------------------------------------------
+    # Players involved
+    # ------------------------------------------------------------------
+
+    def get_all_team_players_involved(
+        self, match_ids: list, team_ids: list | None = None,
+    ) -> pd.DataFrame:
         """
-        Retrieves all players involved in the specified matches and teams.
+        Retrieve all players involved across matches, defaulting to club teams.
 
         Args:
-            match_ids (list): A list of match IDs.
-            team_ids (list, optional): A list of team IDs. If not provided, it uses the default team IDs.
+            match_ids (list): Match IDs to query.
+            team_ids (list, optional): Defaults to ``self.team_ids``.
 
         Returns:
-            pandas.DataFrame: A DataFrame containing the details of all players involved.
+            pd.DataFrame: Deduplicated player records.
         """
         if not team_ids:
             team_ids = self.team_ids
-        players = self.get_all_players_involved(
-            match_ids=match_ids, team_ids=team_ids)
-        return players
+        return self.get_all_players_involved(match_ids=match_ids, team_ids=team_ids)
