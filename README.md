@@ -1,6 +1,6 @@
 # pyplaycricket
 
-**pyplaycricket** is a Python package for extracting and analyzing data programmatically from [Play-Cricket](https://play-cricket.com) sites.
+**pyplaycricket** is a Python package for extracting and analysing data programmatically from [Play-Cricket](https://play-cricket.com) sites.
 
 ---
 
@@ -11,7 +11,7 @@
 - [Library Structure](#library-structure)
 - [Quick Start](#quick-start)
 - [API Reference — `pc`](#api-reference--pc)
-  - [Initialization](#initialisation)
+  - [Initialisation](#initialisation)
   - [list_registered_players](#list_registered_players)
   - [get_all_matches](#get_all_matches)
   - [get_league_table](#get_league_table)
@@ -84,7 +84,7 @@ table, key = playc.get_league_table(competition_id=117611, simple=True)
 
 ## API Reference — `pc`
 
-### Initialization
+### Initialisation
 
 ```python
 from playcric.playcricket import pc
@@ -344,7 +344,7 @@ batting, bowling, fielding = playc.get_stat_totals(
 | `match_ids` | list | required | Match IDs to aggregate over. |
 | `team_ids` | list | `None` | Teams to include. |
 | `group_by_team` | bool | `False` | If `True`, break stats down by team in addition to player. |
-| `for_graphics` | bool | `False` | If `True`, truncate to `n_players` and serialize each DataFrame to a newline-delimited string. |
+| `for_graphics` | bool | `False` | If `True`, truncate to `n_players` and serialise each DataFrame to a newline-delimited string. |
 | `n_players` | int | `10` | Player count limit when `for_graphics=True`. |
 
 **Returns:** `tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]` — aggregated `(batting, bowling, fielding)`.
@@ -382,10 +382,10 @@ alleyn = acc(api_key='your_api_key', site_id=your_site_id)
 | `get_innings_scores(match_ids)` | `tuple[str, str]` | Newline-joined team names and score strings (e.g. `"Alleyn CC\nEffingham CC"`, `"137-6\n136"`) |
 | `get_result_description_and_margin(match_ids, team_ids)` | `str` | Human-readable result lines (e.g. `"1s Won by 47 runs\n"`) |
 | `get_individual_performances_for_graphic(match_ids, players_to_include)` | `str` | Fixed-width newline-delimited top batting and bowling performances per innings |
-| `get_best_individual_performances(match_ids, team_ids, n_players, for_graphics)` | `tuple` | Top batting and bowling performances, optionally serialized for graphics |
+| `get_best_individual_performances(match_ids, team_ids, n_players, for_graphics)` | `tuple` | Top batting and bowling performances, optionally serialised for graphics |
 | `get_weekend_matches(matches, saturday)` | `pd.DataFrame` | Filter a matches DataFrame to a specific weekend |
 | `get_season_opposition_list(matches)` | `str` | Newline-joined opposition team names for the season |
-| `get_cutout_off_league_table(league_table, n_teams)` | `str` | Fixed-width table slice centered on the club |
+| `get_cutout_off_league_table(league_table, n_teams)` | `str` | Fixed-width table slice centred on the club |
 | `get_alleyn_season_totals(match_ids, ...)` | `tuple` | Wrapper around `get_stat_totals` defaulting `team_ids` to Alleyn's registered teams |
 | `get_all_team_players_involved(match_ids, team_ids)` | `pd.DataFrame` | Wrapper around `get_all_players_involved` defaulting to Alleyn's teams |
 
