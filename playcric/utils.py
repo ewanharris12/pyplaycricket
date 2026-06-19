@@ -519,8 +519,8 @@ class u():
             .rename(columns={'index': 'rank'})
         )
         bowling['overs'] = bowling['balls'].apply(lambda x: self._calculate_overs(x))
-        bowling['average'] = bowling['runs'] / bowling['wickets']
-        bowling['sr'] = bowling['balls'] / bowling['wickets']
+        bowling['average'] = bowling['runs'] / bowling['wickets'].replace(0, pd.NA)
+        bowling['sr'] = bowling['balls'] / bowling['wickets'].replace(0, pd.NA)
         bowling['econ'] = (bowling['runs'] / bowling['balls']) * 6
         bowling['rank'] += 1
         return bowling
