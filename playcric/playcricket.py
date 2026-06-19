@@ -224,7 +224,14 @@ class pc(u):
 
         players = []
         for match_id in match_ids:
-            players.append(self._get_players_used_in_match(match_id=match_id))
+            try:
+                self.logger.info(f'Getting players for match {match_id}')
+                players.append(self._get_players_used_in_match(match_id=match_id))
+            except Exception as e:
+                self.logger.error(f'Error occurred while fetching players for match {match_id}: {e}')
+        
+        if not players:
+            raise ValueError('No player data could be retrieved for the provided match IDs.')
         players = pd.concat(players)
 
         if team_ids:
