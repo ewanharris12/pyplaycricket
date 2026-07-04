@@ -584,6 +584,19 @@ class TestAggregateStats(unittest.TestCase):
         if not zero_innings.empty:
             self.assertTrue(zero_innings['average'].isna().all())
 
+    def test_aggregate_bowling_econ_is_none_for_zero_balls(self):
+        """Bowlers with 0 balls bowled should have NaN (not inf) economy."""
+        bowling = pd.DataFrame({
+            'player_id': [1],
+            'wickets': [0],
+            'balls': [0],
+            'maidens': [0],
+            'runs': [0],
+            'match_id': [1],
+        })
+        bowling_agg = u()._aggregate_bowling_stats(bowling, ['player_id'])
+        self.assertTrue(bowling_agg['econ'].isna().all())
+
 
 # ---------------------------------------------------------------------------
 # pc init — mutable default argument fix
