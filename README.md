@@ -26,6 +26,7 @@
   - [check_cap_limit_breaches](#check_cap_limit_breaches)
 - [Alleyn CC Subclass — `acc`](#alleyn-cc-subclass--acc)
 - [Finding IDs](#finding-ids)
+- [Development](#development)
 - [License](#license)
 
 ---
@@ -429,6 +430,20 @@ Most IDs can be found from the output of `get_all_matches`. The key columns are:
 | `competition_type` | String type, e.g. `"League"`, `"Cup"`, `"Friendly"` |
 
 To find the IDs for a club you don't administer, look at the bottom of their Play-Cricket site home page — the site ID is shown there.
+
+---
+
+## Development
+
+Tests live in `tests/` and run with `pytest`.
+
+This repo ships a pre-commit hook (`.githooks/pre-commit`) that runs the test suite before every commit and blocks the commit if any test fails. To enable it locally:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+If `pytest` isn't installed, the hook skips the check with a warning instead of blocking the commit.
 
 ---
 

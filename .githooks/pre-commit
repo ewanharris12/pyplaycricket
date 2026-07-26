@@ -1,0 +1,19 @@
+#!/bin/sh
+# Runs the test suite before allowing a commit.
+# Enable with: git config core.hooksPath .githooks
+
+if ! command -v pytest >/dev/null 2>&1; then
+    echo "pytest not found on PATH; skipping pre-commit tests." >&2
+    echo "Install it with 'pip install pytest' to enable this check." >&2
+    exit 0
+fi
+
+echo "Running tests before commit..."
+pytest
+
+status=$?
+if [ $status -ne 0 ]; then
+    echo "Tests failed; commit aborted." >&2
+fi
+
+exit $status
