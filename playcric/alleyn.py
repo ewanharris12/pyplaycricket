@@ -88,7 +88,7 @@ class acc(pc):
     # ------------------------------------------------------------------
 
     def get_individual_performances_for_graphic(
-        self, match_ids: list | None = None, players_to_include: int = 3,
+        self, match_ids: list | None = None, players_to_include: int = 3, alternate: bool = True
     ):
         """
         Build a fixed-width newline-delimited string of top batting and bowling
@@ -97,6 +97,8 @@ class acc(pc):
         Args:
             match_ids (list, optional): Match IDs to process.
             players_to_include (int): Number of players to show per innings half.
+            alternate (bool): If True, show all names then all stats.  If False,
+                show name then stat for each player.
 
         Returns:
             str: Formatted summary string.
@@ -123,7 +125,7 @@ class acc(pc):
                 batting_names, batting_stats = self._make_sure_number_of_players_is_consistent(
                     batting_names, batting_stats, players_to_include=players_to_include)
                 stats_summary = self._add_to_stats_string(
-                    stats_summary, batting_names, batting_stats)
+                    stats_summary, batting_names, batting_stats, alternate=alternate)
 
                 bowln = bowl.loc[bowl['innings'] == innings]
                 bowln = bowln.loc[bowln['wickets'] > 0]
@@ -136,11 +138,11 @@ class acc(pc):
                 bowling_names, bowling_stats = self._make_sure_number_of_players_is_consistent(
                     bowling_names, bowling_stats, players_to_include=players_to_include)
                 stats_summary = self._add_to_stats_string(
-                    stats_summary, bowling_names, bowling_stats)
+                    stats_summary, bowling_names, bowling_stats, alternate=alternate)
 
         return stats_summary
 
-    def _add_to_stats_string(self, stats_summary: str, names_list: list, stats_list: list) -> str:
+    def _add_to_stats_string(self, stats_summary: str, names_list: list, stats_list: list, alternate: bool) -> str:
         """
         Append a block of names then stats to the running summary string.
 
@@ -152,8 +154,12 @@ class acc(pc):
         Returns:
             str: Updated summary string.
         """
-        stats_summary += '\n'.join(names_list) + '\n'
-        stats_summary += '\n'.join(stats_list) + '\n'
+        if alternate:
+            stats_summary += '\n'.join(names_list) + '\n'
+            stats_summary += '\n'.join(stats_list) + '\n'
+        else:
+            for name, stat in zip(names_list, stats_list):
+                stats_summary += f"{name}\n{stat}\n"
         return stats_summary
 
     def _make_sure_number_of_players_is_consistent(
