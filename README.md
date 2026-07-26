@@ -23,6 +23,7 @@
   - [get_individual_stats](#get_individual_stats)
   - [get_individual_stats_from_all_games](#get_individual_stats_from_all_games)
   - [get_stat_totals](#get_stat_totals)
+  - [check_cap_limit_breaches](#check_cap_limit_breaches)
 - [Alleyn CC Subclass — `acc`](#alleyn-cc-subclass--acc)
 - [Finding IDs](#finding-ids)
 - [License](#license)
@@ -362,6 +363,30 @@ batting, bowling, fielding = playc.get_stat_totals(
 | 1 | M Ogden | 12 | 487 | 89 | 44.3 |
 | 2 | T Eadon | 12 | 421 | 72 | 38.3 |
 | 3 | E Harris | 11 | 389 | 68 | 35.4 |
+
+---
+
+### check_cap_limit_breaches
+
+Flag players who are cup-tied out of a lower team by appearances for higher teams (e.g. 10+ games for the 1s means a player can no longer play the 2s; 10+ combined games for the 1s+2s means they can no longer play the 3s, and so on). Only teams named with the `"<n>s"` convention (`'1s'`, `'2s'`, ...) participate in the hierarchy; other team names (e.g. `'Barbarians'`) are ignored.
+
+```python
+breaches = playc.check_cap_limit_breaches(
+    players_involved_by_team=players_involved_by_team,
+    agg_batting=agg_batting,
+    agg_bowling=agg_bowling,
+    cap_limit=10,
+)
+```
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `players_involved_by_team` | `pd.DataFrame` | required | One row per player per team, with `team_name`, `player_name`, `player_id`, and `count` (appearances for that team) columns. |
+| `agg_batting` | `pd.DataFrame` | required | Batting totals from `get_stat_totals(..., group_by_team=True)`. |
+| `agg_bowling` | `pd.DataFrame` | required | Bowling totals from `get_stat_totals(..., group_by_team=True)`. |
+| `cap_limit` | int | `10` | Appearances at/above which a player is cup-tied out of the next team down. |
+
+**Returns:** `pd.DataFrame` — one row per capped player, with `blocked_team` (the team they can't play below), `lowest_available_team` (the lowest team they're still available for), `appearances_in_lowest_available_team`, `cumulative_appearances`, `cap_limit`, and the player's batting/bowling stats for `lowest_available_team` attached (`average_batting`/`average_bowling` disambiguate the two averages).
 
 ---
 

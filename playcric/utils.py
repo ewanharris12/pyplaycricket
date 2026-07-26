@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import numpy as np
 import math
+from typing import Optional
 
 from playcric import config
 
@@ -53,7 +54,7 @@ class u():
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _normalise_id(value) -> int | None:
+    def _normalise_id(value) -> Optional[int]:
         """
         Coerce an API ID value to int, returning None for empty/null values.
 

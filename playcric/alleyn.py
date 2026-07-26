@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import logging
+from typing import Optional
 
 
 class acc(pc):
@@ -19,8 +20,8 @@ class acc(pc):
         self,
         api_key: str,
         site_id: int,
-        team_names: list | None = None,
-        team_name_to_ids_lookup: dict | None = None,
+        team_names: Optional[list] = None,
+        team_name_to_ids_lookup: Optional[dict] = None,
     ):
         """
         Initialise the Alleyn CC client.
@@ -52,7 +53,7 @@ class acc(pc):
     # Innings / scores
     # ------------------------------------------------------------------
 
-    def get_innings_scores(self, match_ids: list | None = None):
+    def get_innings_scores(self, match_ids: Optional[list] = None):
         """
         Return team names and innings score strings for a set of matches.
 
@@ -88,7 +89,7 @@ class acc(pc):
     # ------------------------------------------------------------------
 
     def get_individual_performances_for_graphic(
-        self, match_ids: list | None = None, players_to_include: int = 3, alternate: bool = True
+        self, match_ids: Optional[list] = None, players_to_include: int = 3, alternate: bool = True
     ):
         """
         Build a fixed-width newline-delimited string of top batting and bowling
@@ -142,7 +143,9 @@ class acc(pc):
 
         return stats_summary
 
-    def _add_to_stats_string(self, stats_summary: str, names_list: list, stats_list: list, alternate: bool) -> str:
+    def _add_to_stats_string(
+        self, stats_summary: str, names_list: list, stats_list: list, alternate: bool = True,
+    ) -> str:
         """
         Append a block of names then stats to the running summary string.
 
@@ -331,7 +334,7 @@ class acc(pc):
     def get_alleyn_season_totals(
         self,
         match_ids: list,
-        team_ids: list | None = None,
+        team_ids: Optional[list] = None,
         group_by_team: bool = False,
         for_graphics: bool = False,
         n_players: int = 10,
@@ -367,7 +370,7 @@ class acc(pc):
     def get_best_individual_performances(
         self,
         match_ids: list,
-        team_ids: list | None = None,
+        team_ids: Optional[list] = None,
         n_players: int = 5,
         for_graphics: bool = False,
     ):
@@ -420,7 +423,7 @@ class acc(pc):
     # ------------------------------------------------------------------
 
     def get_all_team_players_involved(
-        self, match_ids: list, team_ids: list | None = None,
+        self, match_ids: list, team_ids: Optional[list] = None,
     ) -> pd.DataFrame:
         """
         Retrieve all players involved across matches, defaulting to club teams.

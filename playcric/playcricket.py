@@ -1,6 +1,8 @@
 import pandas as pd
 import logging
 import numpy as np
+import re
+from typing import Optional
 from playcric import config
 from playcric.utils import u
 
@@ -26,8 +28,8 @@ class pc(u):
         self,
         api_key: str,
         site_id: int,
-        team_names: list | None = None,
-        team_name_to_ids_lookup: dict | None = None,
+        team_names: Optional[list] = None,
+        team_name_to_ids_lookup: Optional[dict] = None,
     ):
         super().__init__()
         self.api_key = api_key
@@ -70,10 +72,10 @@ class pc(u):
     def get_all_matches(
         self,
         season: int,
-        team_ids: list | None = None,
-        competition_ids: list | None = None,
-        competition_types: list | None = None,
-        site_id: int | None = None,
+        team_ids: Optional[list] = None,
+        competition_ids: Optional[list] = None,
+        competition_types: Optional[list] = None,
+        site_id: Optional[int] = None,
     ):
         """
         Retrieve all matches for a season, with optional filters.
@@ -186,7 +188,7 @@ class pc(u):
             config.MATCH_DETAIL_URL.format(match_id=match_id, api_key=self.api_key))
         return data['match_details'][0]['result_description']
 
-    def get_result_for_my_team(self, match_id: int, team_ids: list | None = None):
+    def get_result_for_my_team(self, match_id: int, team_ids: Optional[list] = None):
         """
         Return the result code (W/L/D/etc.) from the perspective of the given teams.
 
@@ -207,7 +209,7 @@ class pc(u):
     # Players involved
     # ------------------------------------------------------------------
 
-    def get_all_players_involved(self, match_ids: list, team_ids: list | None = None):
+    def get_all_players_involved(self, match_ids: list, team_ids: Optional[list] = None):
         """
         Retrieve deduplicated player records across a set of matches.
 
@@ -348,7 +350,7 @@ class pc(u):
     # Individual stats
     # ------------------------------------------------------------------
 
-    def get_individual_stats(self, match_id: int, team_ids: list | None = None, stat_string: bool = False):
+    def get_individual_stats(self, match_id: int, team_ids: Optional[list] = None, stat_string: bool = False):
         """
         Retrieve batting and bowling statistics for a single match.
 
@@ -424,7 +426,7 @@ class pc(u):
         return all_batting, all_bowling
 
     def get_individual_stats_from_all_games(
-        self, match_ids: list, team_ids: list | None = None, stat_string: bool = False,
+        self, match_ids: list, team_ids: Optional[list] = None, stat_string: bool = False,
     ):
         """
         Collect individual batting, bowling, and fielding stats across multiple matches.
@@ -555,6 +557,115 @@ class pc(u):
         bowling = self._aggregate_bowling_stats(bowling, bowling_groupby)
         fielding = self._aggregate_fielding_stats(fielding, fielding_groupby)
         return batting, bowling, fielding
+
+    # ------------------------------------------------------------------
+    # Cap limits
+    # ------------------------------------------------------------------
+
+    def check_cap_limit_breaches(
+        self,
+        players_involved_by_team: pd.DataFrame,
+        agg_batting: pd.DataFrame,
+        agg_bowling: pd.DataFrame,
+        cap_limit: int = 10,
+    ) -> pd.DataFrame:
+        """
+        Flag players who are cup-tied out of a lower team by appearances for
+        higher teams, with their batting/bowling stats for the lowest team
+        they're still available for attached for context.
+
+        Only teams named with the ``"<n>s"`` convention (``'1s'``, ``'2s'``, ...)
+        participate in the hierarchy; other team names (``'Barbarians'``, etc.)
+        are ignored. A player is blocked from team ``n`` once their combined
+        appearances for every team numbered below ``n`` reach ``cap_limit``.
+        Since that block is monotonic (once blocked from team ``n``, a player
+        is blocked from every team below it too), each capped player gets a
+        single row keyed on the first team they're blocked from.
+
+        Args:
+            players_involved_by_team (pd.DataFrame): One row per player per
+                team, with ``team_name``, ``player_name``, ``player_id``, and
+                ``count`` (appearances for that team) columns.
+            agg_batting (pd.DataFrame): Batting totals from
+                ``get_stat_totals(..., group_by_team=True)``, with
+                ``batsman_id`` and ``team_id`` columns.
+            agg_bowling (pd.DataFrame): Bowling totals from
+                ``get_stat_totals(..., group_by_team=True)``, with
+                ``bowler_id`` and ``team_id`` columns.
+            cap_limit (int, optional): Appearances at/above which a player is
+                cup-tied out of the next team down. Defaults to 10.
+
+        Returns:
+            pd.DataFrame: One row per capped player, with the team they can't
+                play below, the lowest team they're still available for,
+                appearance counts, and their batting/bowling stats for that
+                lowest available team.
+        """
+        team_levels = players_involved_by_team.copy()
+        team_levels['team_level'] = team_levels['team_name'].str.extract(r'^(\d+)s$')
+        team_levels.dropna(subset=['team_level'], inplace=True)
+        team_levels['team_level'] = team_levels['team_level'].astype(int)
+
+        team_id_by_level = (
+            team_levels[['team_level', 'team_name']]
+            .drop_duplicates()
+            .assign(team_id=lambda df: df['team_name'].map(self.team_name_to_ids_lookup))
+            .set_index('team_level')['team_id']
+        )
+
+        appearances = team_levels.pivot_table(
+            index=['player_id', 'player_name'], columns='team_level',
+            values='count', aggfunc='sum', fill_value=0,
+        )
+
+        levels = sorted(appearances.columns)
+        cumulative = appearances[levels].cumsum(axis=1).shift(axis=1, fill_value=0)
+
+        breaches = []
+        for player_id, player_name in appearances.index:
+            blocked_levels = [
+                level for level in levels
+                if level >= 2 and cumulative.loc[(player_id, player_name), level] >= cap_limit
+            ]
+            if not blocked_levels:
+                continue
+
+            first_blocked_level = min(blocked_levels)
+            available_level = levels[levels.index(first_blocked_level) - 1]
+            breaches.append({
+                'player_id': player_id,
+                'player_name': player_name,
+                'blocked_team': f'{first_blocked_level}s',
+                'lowest_available_team': f'{available_level}s',
+                'available_team_id': team_id_by_level.get(available_level),
+                'appearances_in_lowest_available_team':
+                    appearances.loc[(player_id, player_name), available_level],
+                'cumulative_appearances': cumulative.loc[(player_id, player_name), first_blocked_level],
+                'cap_limit': cap_limit,
+            })
+
+        breaches = pd.DataFrame(breaches)
+        self.logger.info(f'Found {len(breaches)} capped players for cap_limit={cap_limit}')
+        if breaches.empty:
+            return breaches
+
+        batting_cols = ['batsman_id', 'team_id', 'runs', 'average', 'top_score']
+        bowling_cols = ['bowler_id', 'team_id', 'wickets', 'average', 'econ']
+        breaches = breaches.merge(
+            agg_batting[batting_cols].rename(columns={'batsman_id': 'player_id'}),
+            how='left',
+            left_on=['player_id', 'available_team_id'],
+            right_on=['player_id', 'team_id'],
+        ).drop(columns=['team_id'])
+        breaches = breaches.merge(
+            agg_bowling[bowling_cols].rename(columns={'bowler_id': 'player_id'}),
+            how='left',
+            left_on=['player_id', 'available_team_id'],
+            right_on=['player_id', 'team_id'],
+            suffixes=('_batting', '_bowling'),
+        ).drop(columns=['team_id'])
+
+        return breaches.sort_values(['player_name', 'blocked_team']).reset_index(drop=True)
 
     # ------------------------------------------------------------------
     # Display / ordering

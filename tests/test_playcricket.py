@@ -599,6 +599,91 @@ class TestAggregateStats(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# check_cap_limit_breaches
+# ---------------------------------------------------------------------------
+
+class TestCheckCapLimitBreaches(unittest.TestCase):
+
+    def setUp(self):
+        self.pc_instance = pc(
+            'test_key', 12345,
+            team_name_to_ids_lookup={'1s': 100, '2s': 200, '3s': 300, 'Barbarians': 999},
+        )
+        self.players_involved_by_team = pd.DataFrame([
+            {'team_name': '1s', 'player_name': 'A Player', 'player_id': '1', 'count': 12},
+            {'team_name': '2s', 'player_name': 'A Player', 'player_id': '1', 'count': 2},
+            {'team_name': '1s', 'player_name': 'B Player', 'player_id': '2', 'count': 6},
+            {'team_name': '2s', 'player_name': 'B Player', 'player_id': '2', 'count': 5},
+            {'team_name': '3s', 'player_name': 'C Player', 'player_id': '3', 'count': 4},
+            {'team_name': 'Barbarians', 'player_name': 'A Player', 'player_id': '1', 'count': 3},
+        ])
+        self.agg_batting = pd.DataFrame([
+            {'batsman_id': '1', 'team_id': 100, 'runs': 400, 'average': 40.0, 'top_score': 80},
+            {'batsman_id': '2', 'team_id': 100, 'runs': 150, 'average': 25.0, 'top_score': 50},
+            {'batsman_id': '2', 'team_id': 200, 'runs': 120, 'average': 24.0, 'top_score': 45},
+        ])
+        self.agg_bowling = pd.DataFrame([
+            {'bowler_id': '1', 'team_id': 100, 'wickets': 10, 'average': 20.0, 'econ': 4.5},
+        ])
+
+    def test_player_capped_out_of_2s_by_1s_alone(self):
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        a_row = breaches.loc[breaches['player_id'] == '1']
+        self.assertEqual(len(a_row), 1)
+        self.assertEqual(a_row.iloc[0]['blocked_team'], '2s')
+        self.assertEqual(a_row.iloc[0]['lowest_available_team'], '1s')
+        self.assertEqual(a_row.iloc[0]['appearances_in_lowest_available_team'], 12)
+
+    def test_player_capped_out_of_3s_by_combined_1s_and_2s(self):
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        b_row = breaches.loc[breaches['player_id'] == '2']
+        self.assertEqual(len(b_row), 1)
+        self.assertEqual(b_row.iloc[0]['blocked_team'], '3s')
+        self.assertEqual(b_row.iloc[0]['lowest_available_team'], '2s')
+        self.assertEqual(b_row.iloc[0]['cumulative_appearances'], 11)
+
+    def test_player_under_threshold_is_not_capped(self):
+        """B Player has only 6 games for the 1s, so is not blocked from the 2s."""
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        b_row = breaches.loc[breaches['player_id'] == '2']
+        self.assertNotEqual(b_row.iloc[0]['blocked_team'], '2s')
+
+    def test_non_numeric_team_is_ignored(self):
+        """A Player's 3 Barbarians appearances must not count toward any cap."""
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        self.assertNotIn('Barbarians', breaches['lowest_available_team'].tolist())
+        self.assertNotIn('Barbarians', breaches['blocked_team'].tolist())
+
+    def test_player_with_only_top_team_appearances_is_never_capped(self):
+        """C Player only ever played the 3s, so has nothing below to be capped from."""
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        self.assertNotIn('3', breaches['player_id'].tolist())
+
+    def test_batting_and_bowling_stats_attached_for_lowest_available_team(self):
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            self.players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        a_row = breaches.loc[breaches['player_id'] == '1'].iloc[0]
+        self.assertEqual(a_row['lowest_available_team'], '1s')
+        self.assertEqual(a_row['runs'], 400)
+        self.assertEqual(a_row['average_batting'], 40.0)
+        self.assertEqual(a_row['wickets'], 10.0)
+        self.assertEqual(a_row['average_bowling'], 20.0)
+
+    def test_no_breaches_returns_empty_dataframe(self):
+        players_involved_by_team = pd.DataFrame([
+            {'team_name': '1s', 'player_name': 'A Player', 'player_id': '1', 'count': 3},
+        ])
+        breaches = self.pc_instance.check_cap_limit_breaches(
+            players_involved_by_team, self.agg_batting, self.agg_bowling, cap_limit=10)
+        self.assertTrue(breaches.empty)
+
+
+# ---------------------------------------------------------------------------
 # pc init — mutable default argument fix
 # ---------------------------------------------------------------------------
 
