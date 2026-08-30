@@ -99,10 +99,28 @@ playc = pc(
         '1s': 59723,
         '2s': 59724,
     },
+    cache=True,                       # Cache API responses in memory (default)
 )
 ```
 
 `team_names` and `team_name_to_ids_lookup` are optional but enable filtering and name-cleaning features across several methods.
+
+### Response caching
+
+Several methods read the same endpoint and pull different fields out of it — `get_match_result_string` and `get_result_for_my_team` both fetch a match's details, as do `get_innings_total_scores`, `get_match_partnerships` and `get_individual_stats`. By default each successful response is cached in memory against its URL, so the endpoint is only requested once no matter how many methods need it:
+
+```python
+playc.get_match_result_string(match_id)   # hits the API
+playc.get_result_for_my_team(match_id)    # served from the cache
+```
+
+The cache lives for the lifetime of the client object. A fresh `pc(...)` starts empty, and `clear_cache()` empties an existing one:
+
+```python
+playc.clear_cache()                       # next call requests the API again
+```
+
+Because there is no expiry, a long-running script or notebook will keep returning the data it first fetched — call `clear_cache()` before re-reading a match that is still in progress. To disable caching entirely, pass `cache=False` at construction.
 
 ---
 
