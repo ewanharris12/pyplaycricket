@@ -1,4 +1,5 @@
 import logging
+import re
 import requests
 import pandas as pd
 import numpy as np
@@ -8,6 +9,10 @@ from typing import Optional
 from playcric import config
 
 module_logger = logging.getLogger('pyplaycricket')
+
+# Matches the api_token query parameter so it can be redacted from cache keys
+# and log lines.
+API_TOKEN_PATTERN = re.compile(r'api_token=[^&]*')
 
 
 # ---------------------------------------------------------------------------
@@ -41,13 +46,17 @@ class u():
     directly — use pc or a subclass instead.
     """
 
-    def __init__(self):
+    def __init__(self, cache: bool = True):
         self.logger = logging.getLogger('pyplaycricket.utils')
         # Declared here so type checkers recognise the attribute; set by pc.__init__.
         self.api_key: str = ''
         # Subclasses may override these to enable club-specific name cleaning.
         self.team_name_banned_words: list = []
         self.n_team_swap: list = []
+        # Successful API responses, keyed by URL (api_token redacted).  Lives for
+        # the lifetime of the instance; call clear_cache() to discard it.
+        self.cache_enabled: bool = cache
+        self._response_cache: dict = {}
 
     # ------------------------------------------------------------------
     # ID normalisation
@@ -344,9 +353,31 @@ class u():
     # API request
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _cache_key(url):
+        """
+        Return the cache key for a URL: the URL with its api_token redacted.
+
+        The token is constant for a given instance, so it carries no information
+        for the key, and redacting it keeps the token out of cache keys and logs.
+
+        Args:
+            url (str): Full API URL including the api_token parameter.
+
+        Returns:
+            str: The URL with ``api_token=***`` in place of the token.
+        """
+        return API_TOKEN_PATTERN.sub('api_token=***', url)
+
     def _make_api_request(self, url):
         """
         Issue an authenticated GET request and return the JSON response.
+
+        Successful responses are cached in memory against the requested URL
+        (unless caching is disabled), so repeated calls for the same endpoint
+        within the lifetime of this instance only hit the API once.  Callers
+        must treat the returned dict as read-only: cache hits hand back the same
+        object, so mutating it would corrupt later reads.
 
         Args:
             url (str): Full API URL including the api_token parameter.
@@ -357,12 +388,25 @@ class u():
         Raises:
             Exception: If the server returns a non-200 status code.
         """
-        self.logger.info(f'Making request to: {url}')
+        key = self._cache_key(url)
+        if self.cache_enabled and key in self._response_cache:
+            self.logger.info(f'Cache hit for: {key}')
+            return self._response_cache[key]
+        self.logger.info(f'Making request to: {key}')
         req = requests.get(url)
         self.logger.info(f'Req response: {req.status_code}')
         if req.status_code != 200:
             raise Exception(f'ERROR ({req.status_code}): {req.reason}')
-        return req.json()
+        data = req.json()
+        if self.cache_enabled:
+            self._response_cache[key] = data
+        return data
+
+    def clear_cache(self):
+        """Discard all cached API responses, forcing fresh requests."""
+        self.logger.info(
+            f'Clearing cache of {len(self._response_cache)} response(s).')
+        self._response_cache.clear()
 
     # ------------------------------------------------------------------
     # Overs / balls conversion

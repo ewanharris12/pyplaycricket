@@ -402,6 +402,28 @@ class TestPlayCricket(unittest.TestCase):
         result = self.pc_instance.get_match_result_string(match_id)
         self.assertEqual(result, expected_result)
 
+    @patch('requests.get')
+    def test_match_detail_shared_between_methods(self, mock_get):
+        """
+        Two methods reading the same match_detail endpoint only request it once.
+
+        This is the motivating case for response caching: get_match_result_string
+        and get_result_for_my_team pull different fields out of one response.
+        """
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = _load_fixture(
+            'match_details.json')
+        match_id = 1
+
+        description = self.pc_instance.get_match_result_string(match_id)
+        result = self.pc_instance.get_result_for_my_team(
+            match_id, team_ids=[59723])
+
+        self.assertEqual(
+            description, 'Alleyn CC - 1st XI - Won: time+toss+bowl')
+        self.assertEqual(result, 'W')
+        self.assertEqual(mock_get.call_count, 1)
+
     @patch.object(pc, '_make_api_request')
     def test_get_result_for_my_team_win(self, mock_make_api_request):
         mock_make_api_request.return_value = {

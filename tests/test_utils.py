@@ -2,7 +2,7 @@ from playcric.utils import u
 from playcric import config
 import pandas as pd
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 class TestUtils(unittest.TestCase):
@@ -258,6 +258,94 @@ class TestUtils(unittest.TestCase):
         # Assert that an exception is raised
         with self.assertRaises(Exception):
             self.utils._make_api_request(url)
+
+    @patch('requests.get')
+    def test_make_api_request_caches_identical_url(self, mock_get):
+        """A repeated URL is served from the cache instead of re-requested."""
+        mock_response = {'status': 'success'}
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = mock_response
+
+        url = 'https://api.example.com/teams/1?api_token=abc'
+        first = self.utils._make_api_request(url)
+        second = self.utils._make_api_request(url)
+
+        self.assertEqual(first, mock_response)
+        self.assertEqual(second, mock_response)
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch('requests.get')
+    def test_make_api_request_different_urls_not_cached_together(self, mock_get):
+        """Distinct URLs each get their own request."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {'status': 'success'}
+
+        self.utils._make_api_request('https://api.example.com/teams/1')
+        self.utils._make_api_request('https://api.example.com/teams/2')
+
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch('requests.get')
+    def test_make_api_request_cache_key_ignores_api_token(self, mock_get):
+        """URLs differing only by api_token share a cache entry."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {'status': 'success'}
+
+        self.utils._make_api_request(
+            'https://api.example.com/match?match_id=1&api_token=key_one')
+        self.utils._make_api_request(
+            'https://api.example.com/match?match_id=1&api_token=key_two')
+
+        self.assertEqual(mock_get.call_count, 1)
+
+    @patch('requests.get')
+    def test_make_api_request_cache_disabled(self, mock_get):
+        """With cache=False every call hits the API."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {'status': 'success'}
+        utils = u(cache=False)
+
+        url = 'https://api.example.com/teams/1'
+        utils._make_api_request(url)
+        utils._make_api_request(url)
+
+        self.assertEqual(mock_get.call_count, 2)
+        self.assertEqual(utils._response_cache, {})
+
+    @patch('requests.get')
+    def test_clear_cache_forces_new_request(self, mock_get):
+        """clear_cache discards entries so the next call re-requests."""
+        mock_get.return_value.status_code = 200
+        mock_get.return_value.json.return_value = {'status': 'success'}
+
+        url = 'https://api.example.com/teams/1'
+        self.utils._make_api_request(url)
+        self.utils.clear_cache()
+        self.utils._make_api_request(url)
+
+        self.assertEqual(mock_get.call_count, 2)
+
+    @patch('requests.get')
+    def test_make_api_request_does_not_cache_failures(self, mock_get):
+        """A failed request is not cached, so a retry hits the API again."""
+        failure = Mock(status_code=500, reason='Server Error')
+        success = Mock(status_code=200)
+        success.json.return_value = {'status': 'success'}
+        mock_get.side_effect = [failure, success]
+
+        url = 'https://api.example.com/teams/1'
+        with self.assertRaises(Exception):
+            self.utils._make_api_request(url)
+        response = self.utils._make_api_request(url)
+
+        self.assertEqual(response, {'status': 'success'})
+        self.assertEqual(mock_get.call_count, 2)
+
+    def test_cache_key_redacts_api_token(self):
+        url = 'https://api.example.com/match?match_id=1&api_token=secret'
+        expected = 'https://api.example.com/match?match_id=1&api_token=***'
+
+        self.assertEqual(self.utils._cache_key(url), expected)
 
     def test_convert_team_ids_to_ints(self):
         team_ids = ['1', '2', '3', '4']

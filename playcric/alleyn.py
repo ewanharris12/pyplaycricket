@@ -22,6 +22,7 @@ class acc(pc):
         site_id: int,
         team_names: Optional[list] = None,
         team_name_to_ids_lookup: Optional[dict] = None,
+        cache: bool = True,
     ):
         """
         Initialise the Alleyn CC client.
@@ -33,6 +34,8 @@ class acc(pc):
                 Defaults to ``alleyn_config.TEAM_NAMES``.
             team_name_to_ids_lookup (dict, optional): Team name → ID mapping.
                 Defaults to ``alleyn_config.TEAM_NAME_TO_IDS_LOOKUP``.
+            cache (bool, optional): Cache API responses in memory for the
+                lifetime of this instance. Defaults to True.
         """
         if team_names is None:
             team_names = alleyn_config.TEAM_NAMES
@@ -43,6 +46,7 @@ class acc(pc):
             api_key=api_key, site_id=site_id,
             team_names=team_names,
             team_name_to_ids_lookup=team_name_to_ids_lookup,
+            cache=cache,
         )
         self.logger = logging.getLogger('pyplaycricket.alleyn')
         # Set club-specific name-cleaning constants used by _clean_team_name in u.

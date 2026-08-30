@@ -22,6 +22,9 @@ class pc(u):
         site_id (int): Default site ID used when none is passed to a method.
         team_names (list): Human-readable team names for this club.
         team_name_to_ids_lookup (dict): Mapping of team name → Play-Cricket team ID.
+        cache (bool): Cache API responses in memory for the lifetime of this
+            instance, so methods sharing an endpoint only request it once.
+            Defaults to True; call ``clear_cache()`` to refresh.
     """
 
     def __init__(
@@ -30,8 +33,9 @@ class pc(u):
         site_id: int,
         team_names: Optional[list] = None,
         team_name_to_ids_lookup: Optional[dict] = None,
+        cache: bool = True,
     ):
-        super().__init__()
+        super().__init__(cache=cache)
         self.api_key = api_key
         self.logger = logging.getLogger('pyplaycricket.playcricket')
         self.logger.info(f'Setting site_id as {site_id}')
