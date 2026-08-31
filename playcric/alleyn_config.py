@@ -8,7 +8,7 @@ from alleyn.py.
 
 TEAM_NAME_TO_IDS_LOOKUP = {
     '1s': 59723, '2s': 59724, '3s': 241803,
-    '4s': 267647, '5s': 394397, 'Barbarians': 279276,
+    '4s': 267647, '5s': 394397, '6s':423876, 'Barbarians': 279276,
     'Badgers': 268144, 'Honey Badgers': 368707, 'Friendly': 320697,
 }
 
